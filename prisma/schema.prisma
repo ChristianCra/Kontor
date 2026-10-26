@@ -56,6 +56,7 @@ model Contact {
   updatedAt        DateTime         @updatedAt
   addresses        ContactAddress[]
   invoices         Invoice[]
+  orders           Order[]
 }
 
 model ContactAddress {
@@ -93,7 +94,7 @@ model Invoice {
   id             Int        @id @default(autoincrement())
   // Nummer wird erst beim Abschließen vergeben (Entwürfe haben keine)
   invoiceNumber  String?    @unique
-  type           String     @default("RE") // RE, SR (Storno), MA (Mahnung), AR, TR, ER
+  type           String     @default("RE") // RE, SR (Storno), GU (Gutschrift), MA (Mahnung), AR, TR, ER
   status         Int        @default(100)  // 100 Entwurf, 200 Offen, 750 Teilbezahlt, 1000 Bezahlt
   contactId      Int
   contact        Contact    @relation(fields: [contactId], references: [id])
@@ -117,6 +118,13 @@ model Invoice {
   dunningLevel   Int        @default(0)
   sentAt         DateTime?
   enshrinedAt    DateTime?  // festgeschrieben, danach unveränderbar (GoBD)
+  // Bezug: Gutschrift oder Mahnung zur Ursprungsrechnung
+  parentId       Int?
+  parent         Invoice?   @relation("Bezug", fields: [parentId], references: [id])
+  children       Invoice[]  @relation("Bezug")
+  orderId        Int?
+  order          Order?     @relation(fields: [orderId], references: [id])
+  eInvoice       Boolean    @default(false)
   cancelsId      Int?       @unique
   cancels        Invoice?   @relation("Storno", fields: [cancelsId], references: [id])
   cancelledBy    Invoice?   @relation("Storno")
@@ -149,4 +157,51 @@ model Payment {
   amount    Int      // Cent
   note      String   @default("")
   createdAt DateTime @default(now())
+}
+
+// Angebot (AN), Auftragsbestätigung (AB) oder Lieferschein (LI)
+model Order {
+  id             Int       @id @default(autoincrement())
+  orderNumber    String?   @unique
+  type           String    @default("AN")
+  status         Int       @default(100) // 100 Entwurf, 200 Versendet, 300 Abgelehnt, 500 Angenommen, 1000 Berechnet
+  contactId      Int
+  contact        Contact   @relation(fields: [contactId], references: [id])
+  address        String
+  orderDate      DateTime
+  validUntil     DateTime?
+  header         String    @default("Angebot")
+  headText       String    @default("")
+  footText       String    @default("")
+  taxType        String    @default("default")
+  currency       String    @default("EUR")
+  discount       Float     @default(0)
+  customerReference String @default("")
+  sumNet         Int       @default(0)
+  sumTax         Int       @default(0)
+  sumGross       Int       @default(0)
+  sentAt         DateTime?
+  parentId       Int?
+  parent         Order?    @relation("Folgebeleg", fields: [parentId], references: [id])
+  children       Order[]   @relation("Folgebeleg")
+  invoices       Invoice[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  positions      OrderPosition[]
+}
+
+model OrderPosition {
+  id        Int     @id @default(autoincrement())
+  orderId   Int
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  position  Int
+  partId    Int?
+  name      String
+  text      String  @default("")
+  quantity  Float
+  unit      String  @default("Stk")
+  priceNet  Int
+  discount  Float   @default(0)
+  taxRate   Float
+  optional  Boolean @default(false) // Optionale Position, zählt nicht zur Summe
 }

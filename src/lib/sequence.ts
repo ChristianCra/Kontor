@@ -4,7 +4,10 @@ const DEFAULT_FORMATS: Record<string, string> = {
   CUSTOMER: "{NNNN}",
   INVOICE: "RE-{YYYY}-{NNNN}",
   ORDER: "AN-{YYYY}-{NNNN}",
+  ORDER_CONFIRMATION: "AB-{YYYY}-{NNNN}",
+  DELIVERY_NOTE: "LS-{YYYY}-{NNNN}",
   CREDIT_NOTE: "GU-{YYYY}-{NNNN}",
+  DUNNING: "MA-{YYYY}-{NNNN}",
 };
 
 export function formatNumber(format: string, n: number, date = new Date()): string {

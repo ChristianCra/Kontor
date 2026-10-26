@@ -18,7 +18,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
     include: { addresses: true, invoices: { orderBy: { invoiceDate: "desc" } } },
   });
   if (!contact) notFound();
-  const open = contact.invoices.filter((i) => i.status === 200 || i.status === 750).reduce((s, i) => s + i.sumGross - i.paidAmount, 0);
+  const open = contact.invoices.filter((i) => ["RE", "AR", "TR", "ER"].includes(i.type) && (i.status === 200 || i.status === 750)).reduce((s, i) => s + i.sumGross - i.paidAmount, 0);
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">

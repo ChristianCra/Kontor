@@ -6,6 +6,7 @@ export type PositionInput = {
   priceNet: number; // Cent
   discount: number; // Prozent
   taxRate: number;
+  optional?: boolean; // optionale Angebotsposition, wird nicht summiert
 };
 
 export type TaxGroup = { rate: number; net: number; tax: number };
@@ -29,6 +30,7 @@ export function computeTotals(positions: PositionInput[], taxType = "default", i
   const nets = positions.map(positionNet);
   const groups = new Map<number, number>();
   nets.forEach((net, i) => {
+    if (positions[i].optional) return;
     const rate = taxFree ? 0 : positions[i].taxRate;
     groups.set(rate, (groups.get(rate) ?? 0) + net);
   });

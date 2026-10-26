@@ -1,10 +1,86 @@
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "pdf-lib";
-import type { Company, Contact, Invoice, InvoicePosition } from "@prisma/client";
-import { computeTotals } from "./calc";
+import type { Company, Contact, Invoice, InvoicePosition, Order, OrderPosition } from "@prisma/client";
+import { computeTotals, type PositionInput } from "./calc";
 import { formatCents, formatDate } from "./money";
 import { dueDate } from "./invoices";
 
-type FullInvoice = Invoice & { positions: InvoicePosition[]; contact: Contact };
+type PdfPosition = PositionInput & { position: number; name: string; text: string; unit: string };
+
+// Neutrale Beschreibung eines Belegs, aus der Rechnungen, Gutschriften, Mahnungen und Angebote gerendert werden
+export type PdfDocument = {
+  title: string;
+  draft: boolean;
+  address: string;
+  meta: [string, string][];
+  headText: string;
+  footText: string;
+  positions: PdfPosition[];
+  taxType: string;
+  discount: number;
+  currency: string;
+  notes: string[];
+  attachment?: { name: string; xml: string };
+};
+
+const META_WIDTH = 200;
+
+export function taxNotes(taxType: string): string[] {
+  if (taxType === "ss") return ["Gemäß §19 UStG wird keine Umsatzsteuer berechnet."];
+  if (taxType === "eu") return ["Steuerfreie innergemeinschaftliche Lieferung bzw. Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge)."];
+  if (taxType === "noteu") return ["Steuerfreie Ausfuhrlieferung bzw. nicht im Inland steuerbare Leistung."];
+  return [];
+}
+
+export function invoiceToPdf(inv: Invoice & { positions: InvoicePosition[]; contact: Contact }): PdfDocument {
+  const numberLabel = { SR: "Stornonummer", GU: "Gutschriftnummer", MA: "Mahnnummer" }[inv.type] ?? "Rechnungsnummer";
+  const meta: [string, string][] = [
+    [numberLabel, inv.invoiceNumber ?? "ENTWURF"],
+    ["Datum", formatDate(inv.invoiceDate)],
+  ];
+  if (inv.deliveryDate && inv.type !== "MA")
+    meta.push(["Leistungsdatum", inv.deliveryDateUntil ? `${formatDate(inv.deliveryDate)} – ${formatDate(inv.deliveryDateUntil)}` : formatDate(inv.deliveryDate)]);
+  meta.push(["Kundennummer", inv.contact.customerNumber]);
+  if (inv.customerReference) meta.push(["Ihre Referenz", inv.customerReference]);
+  const notes = inv.type === "MA" ? [] : taxNotes(inv.taxType);
+  if (["RE", "AR", "TR", "ER", "MA"].includes(inv.type) && inv.timeToPay > 0)
+    notes.push(`Bitte überweisen Sie den Betrag bis zum ${formatDate(dueDate(inv))} unter Angabe der Rechnungsnummer.`);
+  return {
+    title: inv.header,
+    draft: !inv.invoiceNumber,
+    address: inv.address,
+    meta,
+    headText: inv.headText,
+    footText: inv.footText,
+    positions: inv.positions,
+    taxType: inv.taxType,
+    discount: inv.discount,
+    currency: inv.currency,
+    notes,
+  };
+}
+
+export function orderToPdf(order: Order & { positions: OrderPosition[]; contact: Contact }): PdfDocument {
+  const meta: [string, string][] = [
+    [order.type === "AN" ? "Angebotsnummer" : order.type === "AB" ? "Auftragsnummer" : "Lieferscheinnummer", order.orderNumber ?? "ENTWURF"],
+    ["Datum", formatDate(order.orderDate)],
+    ["Kundennummer", order.contact.customerNumber],
+  ];
+  if (order.validUntil && order.type === "AN") meta.push(["Gültig bis", formatDate(order.validUntil)]);
+  if (order.customerReference) meta.push(["Ihre Referenz", order.customerReference]);
+  return {
+    title: order.header,
+    draft: !order.orderNumber,
+    address: order.address,
+    meta,
+    headText: order.headText,
+    footText: order.footText,
+    positions: order.positions,
+    taxType: order.taxType,
+    discount: order.discount,
+    currency: order.currency,
+    notes: taxNotes(order.taxType),
+  };
+}
 
 const A4: [number, number] = [595.28, 841.89];
 const MARGIN = 56;
@@ -33,9 +109,9 @@ function stripHtml(s: string): string {
   return s.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "");
 }
 
-export async function renderInvoicePdf(inv: FullInvoice, company: Company): Promise<Uint8Array> {
+export async function renderPdf(d: PdfDocument, company: Company): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  doc.setTitle(inv.header);
+  doc.setTitle(d.title);
   doc.setAuthor(company.name);
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -68,27 +144,18 @@ export async function renderInvoicePdf(inv: FullInvoice, company: Company): Prom
 
   // Absenderzeile und Empfänger
   text([company.name, company.street, `${company.zip} ${company.city}`].filter(Boolean).join(" · "), MARGIN, y - 90, { size: 7, color: GREY });
-  inv.address.split("\n").forEach((line, i) => text(line, MARGIN, y - 108 - i * 13));
+  d.address.split("\n").forEach((line, i) => text(line, MARGIN, y - 108 - i * 13));
 
   // Metadaten rechts
-  const meta: [string, string][] = [
-    [inv.type === "SR" ? "Stornonummer" : "Rechnungsnummer", inv.invoiceNumber ?? "ENTWURF"],
-    ["Rechnungsdatum", formatDate(inv.invoiceDate)],
-    ...(inv.deliveryDate
-      ? [["Leistungsdatum", inv.deliveryDateUntil ? `${formatDate(inv.deliveryDate)} – ${formatDate(inv.deliveryDateUntil)}` : formatDate(inv.deliveryDate)] as [string, string]]
-      : []),
-    ["Kundennummer", inv.contact.customerNumber],
-    ...(inv.customerReference ? [["Ihre Referenz", inv.customerReference] as [string, string]] : []),
-  ];
-  meta.forEach(([k, v], i) => {
-    text(k, A4[0] - MARGIN - 200, y - 108 - i * 13, { size: 9, color: GREY });
+  d.meta.forEach(([k, v], i) => {
+    text(k, A4[0] - MARGIN - META_WIDTH, y - 108 - i * 13, { size: 9, color: GREY });
     right(v, A4[0] - MARGIN, y - 108 - i * 13, 9);
   });
 
   y -= 230;
-  text(inv.invoiceNumber ? inv.header : `${inv.header} (Entwurf)`, MARGIN, y, { size: 16, f: bold });
+  text(d.draft ? `${d.title} (Entwurf)` : d.title, MARGIN, y, { size: 16, f: bold });
   y -= 24;
-  for (const line of wrap(stripHtml(inv.headText), font, 10, width)) {
+  for (const line of wrap(stripHtml(d.headText), font, 10, width)) {
     ensureSpace(14);
     text(line, MARGIN, y);
     y -= 14;
@@ -109,8 +176,8 @@ export async function renderInvoicePdf(inv: FullInvoice, company: Company): Prom
   };
   tableHeader();
 
-  const totals = computeTotals(inv.positions, inv.taxType, inv.discount);
-  const positions = [...inv.positions].sort((a, b) => a.position - b.position);
+  const positions = [...d.positions].sort((a, b) => a.position - b.position);
+  const totals = computeTotals(positions, d.taxType, d.discount);
   positions.forEach((p, i) => {
     const desc = p.text ? wrap(stripHtml(p.text), font, 8, 260) : [];
     const needed = 14 + desc.length * 11;
@@ -119,10 +186,10 @@ export async function renderInvoicePdf(inv: FullInvoice, company: Company): Prom
       tableHeader();
     }
     text(String(i + 1), cols.pos, y, { size: 9 });
-    text(p.name, cols.name, y, { size: 9 });
+    text(p.optional ? `${p.name} (optional)` : p.name, cols.name, y, { size: 9 });
     right(`${p.quantity.toLocaleString("de-DE")} ${p.unit}`, cols.qty, y, 9);
-    right(formatCents(p.priceNet, inv.currency) + (p.discount ? ` (-${p.discount}%)` : ""), cols.price, y, 9);
-    right(formatCents(totals.positions[i], inv.currency), cols.total, y, 9);
+    right(formatCents(p.priceNet, d.currency) + (p.discount ? ` (-${p.discount}%)` : ""), cols.price, y, 9);
+    right(formatCents(totals.positions[i], d.currency), cols.total, y, 9);
     y -= 12;
     desc.forEach((d) => {
       text(d, cols.name, y, { size: 8, color: GREY });
@@ -137,22 +204,19 @@ export async function renderInvoicePdf(inv: FullInvoice, company: Company): Prom
   y -= 10;
   const sumRow = (label: string, value: number, f = font) => {
     text(label, MARGIN + 260, y, { size: 10, f });
-    right(formatCents(value, inv.currency), A4[0] - MARGIN, y, 10, f);
+    right(formatCents(value, d.currency), A4[0] - MARGIN, y, 10, f);
     y -= 14;
   };
-  if (inv.discount) sumRow(`abzgl. ${inv.discount}% Rabatt enthalten`, 0);
+  if (d.discount) {
+    text(`Summen inkl. ${d.discount.toLocaleString("de-DE")} % Gesamtrabatt`, MARGIN + 260, y, { size: 8, color: GREY });
+    y -= 12;
+  }
   sumRow("Summe netto", totals.net);
   for (const g of totals.taxGroups) if (g.rate > 0) sumRow(`Umsatzsteuer ${g.rate.toLocaleString("de-DE")}%`, g.tax);
   sumRow("Gesamtbetrag", totals.gross, bold);
   y -= 10;
 
-  const notes: string[] = [];
-  if (inv.taxType === "ss") notes.push("Gemäß §19 UStG wird keine Umsatzsteuer berechnet.");
-  if (inv.taxType === "eu") notes.push("Steuerfreie innergemeinschaftliche Lieferung bzw. Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge).");
-  if (inv.taxType === "noteu") notes.push("Steuerfreie Ausfuhrlieferung bzw. nicht im Inland steuerbare Leistung.");
-  if (inv.type !== "SR" && inv.timeToPay > 0)
-    notes.push(`Bitte überweisen Sie den Betrag bis zum ${formatDate(dueDate(inv))} unter Angabe der Rechnungsnummer.`);
-  if (inv.footText) notes.push(stripHtml(inv.footText));
+  const notes = [...d.notes, ...(d.footText ? [stripHtml(d.footText)] : [])];
   for (const line of notes.flatMap((n) => wrap(n, font, 10, width))) {
     ensureSpace(14);
     text(line, MARGIN, y);
@@ -160,6 +224,14 @@ export async function renderInvoicePdf(inv: FullInvoice, company: Company): Prom
   }
 
   footer();
+  if (d.attachment) {
+    await doc.attach(new TextEncoder().encode(d.attachment.xml), d.attachment.name, {
+      mimeType: "text/xml",
+      description: "Strukturierte Rechnungsdaten (E-Rechnung)",
+      creationDate: new Date(),
+      modificationDate: new Date(),
+    });
+  }
   const pages = doc.getPages();
   pages.forEach((p, i) => {
     const label = `Seite ${i + 1} von ${pages.length}`;

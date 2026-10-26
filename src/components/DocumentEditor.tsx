@@ -2,12 +2,39 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Invoice, InvoicePosition, Part, Unit } from "@prisma/client";
+import type { Part, Unit } from "@prisma/client";
 import { computeTotals } from "@/lib/calc";
 import { centsToInput, formatCents, parseCents } from "@/lib/money";
-import { saveAndFinalize, saveDraft, type DraftInput } from "@/app/actions/invoices";
+import type { ActionResult, DraftInput } from "@/lib/draft";
 
 type Row = DraftInput["positions"][number] & { key: number };
+
+export type EditorDoc = {
+  id: number;
+  address: string;
+  date: Date;
+  deliveryDate?: Date | null;
+  deliveryDateUntil?: Date | null;
+  validUntil?: Date | null;
+  timeToPay?: number;
+  headText: string;
+  footText: string;
+  taxType: string;
+  discount: number;
+  customerReference: string;
+  eInvoice?: boolean;
+  positions: { id: number; position: number; partId: number | null; name: string; text: string; quantity: number; unit: string; priceNet: number; discount: number; taxRate: number; optional?: boolean }[];
+};
+
+type Props = {
+  kind: "invoice" | "order";
+  doc: EditorDoc;
+  parts: PartWithUnit[];
+  pdfUrl: string;
+  finalizeLabel: string;
+  save: (id: number, input: DraftInput) => Promise<ActionResult>;
+  finalize: (id: number, input: DraftInput) => Promise<ActionResult>;
+};
 type PartWithUnit = Part & { unit: Unit };
 
 const iso = (d: Date | null) => (d ? new Date(d).toISOString().slice(0, 10) : "");
@@ -20,24 +47,26 @@ function safeCents(s: string): number {
   }
 }
 
-export function InvoiceEditor({ invoice, parts }: { invoice: Invoice & { positions: InvoicePosition[] }; parts: PartWithUnit[] }) {
+export function DocumentEditor({ kind, doc, parts, pdfUrl, finalizeLabel, save, finalize }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
   const [head, setHead] = useState({
-    address: invoice.address,
-    invoiceDate: iso(invoice.invoiceDate),
-    deliveryDate: iso(invoice.deliveryDate),
-    deliveryDateUntil: iso(invoice.deliveryDateUntil),
-    timeToPay: invoice.timeToPay,
-    headText: invoice.headText,
-    footText: invoice.footText,
-    taxType: invoice.taxType as DraftInput["taxType"],
-    discount: invoice.discount,
-    customerReference: invoice.customerReference,
+    address: doc.address,
+    date: iso(doc.date),
+    deliveryDate: iso(doc.deliveryDate ?? null),
+    deliveryDateUntil: iso(doc.deliveryDateUntil ?? null),
+    validUntil: iso(doc.validUntil ?? null),
+    timeToPay: doc.timeToPay ?? 0,
+    headText: doc.headText,
+    footText: doc.footText,
+    taxType: doc.taxType as DraftInput["taxType"],
+    discount: doc.discount,
+    customerReference: doc.customerReference,
+    eInvoice: doc.eInvoice ?? false,
   });
   const [rows, setRows] = useState<Row[]>(
-    [...invoice.positions]
+    [...doc.positions]
       .sort((a, b) => a.position - b.position)
       .map((p) => ({
         key: p.id,
@@ -49,6 +78,7 @@ export function InvoiceEditor({ invoice, parts }: { invoice: Invoice & { positio
         price: centsToInput(p.priceNet),
         discount: p.discount,
         taxRate: p.taxRate,
+        optional: p.optional ?? false,
       })),
   );
 
@@ -71,6 +101,7 @@ export function InvoiceEditor({ invoice, parts }: { invoice: Invoice & { positio
         price: part ? centsToInput(part.priceNet) : "",
         discount: 0,
         taxRate: part?.taxRate ?? 19,
+        optional: false,
       },
     ]);
   const move = (i: number, dir: -1 | 1) =>
@@ -82,17 +113,17 @@ export function InvoiceEditor({ invoice, parts }: { invoice: Invoice & { positio
       return copy;
     });
 
-  const submit = (finalize: boolean) => {
+  const submit = (doFinalize: boolean) => {
     setError(undefined);
     const input: DraftInput = { ...head, positions: rows.map(({ key: _key, ...r }) => r) };
     startTransition(async () => {
-      const res = await (finalize ? saveAndFinalize(invoice.id, input) : saveDraft(invoice.id, input));
+      const res = await (doFinalize ? finalize(doc.id, input) : save(doc.id, input));
       if (res.error) setError(res.error);
       else router.refresh();
     });
   };
 
-  const field = <K extends keyof typeof head>(k: K) => ({
+  const field = <K extends Exclude<keyof typeof head, "eInvoice">>(k: K) => ({
     value: head[k] as string | number,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setHead((h) => ({ ...h, [k]: typeof h[k] === "number" ? Number(e.target.value) : e.target.value })),
@@ -103,10 +134,16 @@ export function InvoiceEditor({ invoice, parts }: { invoice: Invoice & { positio
       <div className="card grid gap-4 md:grid-cols-2">
         <div><label className="label">Empfänger</label><textarea className="input" rows={4} {...field("address")} /></div>
         <div className="grid grid-cols-2 gap-3">
-          <div><label className="label">Rechnungsdatum</label><input type="date" className="input" {...field("invoiceDate")} /></div>
-          <div><label className="label">Zahlungsziel (Tage)</label><input type="number" min={0} className="input" {...field("timeToPay")} /></div>
-          <div><label className="label">Leistungsdatum</label><input type="date" className="input" {...field("deliveryDate")} /></div>
-          <div><label className="label">Leistung bis (optional)</label><input type="date" className="input" {...field("deliveryDateUntil")} /></div>
+          <div><label className="label">{kind === "order" ? "Datum" : "Rechnungsdatum"}</label><input type="date" className="input" {...field("date")} /></div>
+          {kind === "invoice" ? (
+            <>
+              <div><label className="label">Zahlungsziel (Tage)</label><input type="number" min={0} className="input" {...field("timeToPay")} /></div>
+              <div><label className="label">Leistungsdatum</label><input type="date" className="input" {...field("deliveryDate")} /></div>
+              <div><label className="label">Leistung bis (optional)</label><input type="date" className="input" {...field("deliveryDateUntil")} /></div>
+            </>
+          ) : (
+            <div><label className="label">Gültig bis</label><input type="date" className="input" {...field("validUntil")} /></div>
+          )}
           <div><label className="label">Ihre Referenz</label><input className="input" {...field("customerReference")} /></div>
           <div>
             <label className="label">Besteuerung</label>
@@ -118,6 +155,12 @@ export function InvoiceEditor({ invoice, parts }: { invoice: Invoice & { positio
             </select>
           </div>
         </div>
+        {kind === "invoice" && (
+          <label className="flex items-center gap-2 text-sm md:col-span-2">
+            <input type="checkbox" checked={head.eInvoice} onChange={(e) => setHead((h) => ({ ...h, eInvoice: e.target.checked }))} />
+            Als E-Rechnung erstellen (XRechnung/ZUGFeRD, Pflicht im B2B-Verkehr ab 2025/2027)
+          </label>
+        )}
         <div className="md:col-span-2"><label className="label">Kopftext</label><textarea className="input" rows={3} {...field("headText")} /></div>
       </div>
 
@@ -133,6 +176,11 @@ export function InvoiceEditor({ invoice, parts }: { invoice: Invoice & { positio
                 <td className="space-y-1">
                   <input className="input" placeholder="Bezeichnung" value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} />
                   <textarea className="input text-xs" rows={1} placeholder="Beschreibung" value={r.text} onChange={(e) => update(r.key, { text: e.target.value })} />
+                  {kind === "order" && (
+                    <label className="flex items-center gap-1 text-xs text-muted">
+                      <input type="checkbox" checked={!!r.optional} onChange={(e) => update(r.key, { optional: e.target.checked })} /> Optionale Position
+                    </label>
+                  )}
                 </td>
                 <td><input className="input" type="number" step="any" value={r.quantity} onChange={(e) => update(r.key, { quantity: Number(e.target.value) })} /></td>
                 <td><input className="input" value={r.unit} onChange={(e) => update(r.key, { unit: e.target.value })} /></td>
@@ -143,7 +191,7 @@ export function InvoiceEditor({ invoice, parts }: { invoice: Invoice & { positio
                     <option value={19}>19</option><option value={7}>7</option><option value={0}>0</option>
                   </select>
                 </td>
-                <td className="num pt-3">{formatCents(totals.positions[i] ?? 0)}</td>
+                <td className={`num pt-3 ${r.optional ? "text-muted line-through" : ""}`}>{formatCents(totals.positions[i] ?? 0)}</td>
                 <td className="whitespace-nowrap pt-2 text-muted">
                   <button type="button" aria-label="Nach oben" className="px-1" onClick={() => move(i, -1)}>↑</button>
                   <button type="button" aria-label="Nach unten" className="px-1" onClick={() => move(i, 1)}>↓</button>
@@ -181,8 +229,8 @@ export function InvoiceEditor({ invoice, parts }: { invoice: Invoice & { positio
       {error && <div className="rounded-md border border-danger p-3 text-sm text-danger">{error}</div>}
       <div className="flex flex-wrap gap-2">
         <button className="btn" disabled={pending} onClick={() => submit(false)}>Entwurf speichern</button>
-        <a className="btn" href={`/rechnungen/${invoice.id}/pdf`} target="_blank">Vorschau (PDF)</a>
-        <button className="btn-primary" disabled={pending} onClick={() => submit(true)}>Abschließen und Nummer vergeben</button>
+        <a className="btn" href={pdfUrl} target="_blank">Vorschau (PDF)</a>
+        <button className="btn-primary" disabled={pending} onClick={() => submit(true)}>{finalizeLabel}</button>
       </div>
     </div>
   );
