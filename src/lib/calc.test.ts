@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeTotals, paymentStatus } from "./calc";
 import { parseCents } from "./money";
+import { eInvoiceMissingFields } from "./invoices";
 
 describe("computeTotals", () => {
   it("gruppiert Steuer nach Satz und rundet je Gruppe", () => {
@@ -30,6 +31,17 @@ describe("computeTotals", () => {
   });
 });
 
+describe("optionale Positionen", () => {
+  it("werden angezeigt, aber nicht summiert", () => {
+    const t = computeTotals([
+      { quantity: 1, priceNet: 10000, discount: 0, taxRate: 19 },
+      { quantity: 1, priceNet: 5000, discount: 0, taxRate: 19, optional: true },
+    ]);
+    expect(t.positions).toEqual([10000, 5000]);
+    expect(t.net).toBe(10000);
+  });
+});
+
 describe("paymentStatus", () => {
   it("leitet Offen, Teilbezahlt und Bezahlt ab", () => {
     expect(paymentStatus(1000, 0)).toBe(200);
@@ -44,5 +56,13 @@ describe("parseCents", () => {
     expect(parseCents("12,5")).toBe(1250);
     expect(parseCents("12.50")).toBe(1250);
     expect(parseCents("")).toBe(0);
+  });
+});
+
+describe("eInvoiceMissingFields", () => {
+  it("meldet fehlende Pflichtangaben für XRechnung", () => {
+    const base = { name: "A", street: "S", zip: "1", city: "C", email: "e@x", phone: "1", vatId: "", taxNumber: "1", iban: "DE" };
+    expect(eInvoiceMissingFields(base)).toEqual([]);
+    expect(eInvoiceMissingFields({ ...base, phone: "", iban: "" })).toEqual(["Telefon", "IBAN"]);
   });
 });

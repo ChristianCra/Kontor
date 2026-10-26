@@ -7,3 +7,16 @@ export const CONTACT_CATEGORY: Record<string, string> = {
   SUPPLIER: "Lieferant",
   PARTNER: "Partner",
 };
+
+export function formatAddress(
+  contact: { name: string | null; firstName: string | null; lastName: string | null },
+  a?: { street: string; zip: string; city: string; country: string },
+): string {
+  const lines = [contactName(contact)];
+  if (a) {
+    if (a.street) lines.push(a.street);
+    lines.push(`${a.zip} ${a.city}`.trim());
+    if (a.country && a.country !== "DE") lines.push(a.country);
+  }
+  return lines.filter(Boolean).join("\n");
+}

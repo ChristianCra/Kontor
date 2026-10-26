@@ -8,6 +8,8 @@ const STYLES: Record<number, string> = {
 };
 
 export function StatusBadge({ status, overdue, type }: { status: number; overdue?: boolean; type?: string }) {
+  if (type === "MA" && status !== 100)
+    return <span className={`rounded px-2 py-0.5 text-xs font-medium ${status === 1000 ? STYLES[1000] : STYLES[200]}`}>{status === 1000 ? "Erledigt" : "Gemahnt"}</span>;
   if (type === "SR") return <span className="rounded px-2 py-0.5 text-xs font-medium bg-gray-500/15 text-muted">Storno</span>;
   if (overdue) return <span className="rounded px-2 py-0.5 text-xs font-medium bg-red-500/15 text-danger">Überfällig</span>;
   return <span className={`rounded px-2 py-0.5 text-xs font-medium ${STYLES[status] ?? ""}`}>{INVOICE_STATUS[status] ?? status}</span>;

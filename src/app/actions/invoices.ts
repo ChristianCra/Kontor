@@ -2,20 +2,21 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { parseCents } from "@/lib/money";
+import { DraftSchema, optDate, type ActionResult, type DraftInput } from "@/lib/draft";
 import {
   assertEditable,
   bookPayment,
   cancelInvoice,
+  createCreditNoteDraft,
+  createDunningDraft,
   enshrineInvoice,
   finalizeInvoice,
   recalc,
   resetToDraft,
 } from "@/lib/invoices";
-
-export type ActionResult = { error?: string };
+import { formatAddress } from "@/lib/contacts";
 
 async function run(id: number, fn: () => Promise<unknown>): Promise<ActionResult> {
   try {
@@ -26,17 +27,6 @@ async function run(id: number, fn: () => Promise<unknown>): Promise<ActionResult
   revalidatePath(`/rechnungen/${id}`);
   revalidatePath("/rechnungen");
   return {};
-}
-
-function formatAddress(contact: { name: string | null; firstName: string | null; lastName: string | null }, a?: { street: string; zip: string; city: string; country: string }) {
-  const name = contact.name ?? [contact.firstName, contact.lastName].filter(Boolean).join(" ");
-  const lines = [name];
-  if (a) {
-    if (a.street) lines.push(a.street);
-    lines.push(`${a.zip} ${a.city}`.trim());
-    if (a.country && a.country !== "DE") lines.push(a.country);
-  }
-  return lines.filter(Boolean).join("\n");
 }
 
 export async function createInvoiceDraft(formData: FormData) {
@@ -54,39 +44,13 @@ export async function createInvoiceDraft(formData: FormData) {
       timeToPay: contact.defaultTimeToPay ?? company?.defaultTimeToPay ?? 14,
       discount: contact.defaultDiscount,
       taxType,
+      eInvoice: !!contact.buyerReference,
       headText: "Sehr geehrte Damen und Herren,\nvielen Dank für Ihren Auftrag. Wir berechnen Ihnen folgende Leistungen:",
       footText: "Mit freundlichen Grüßen",
     },
   });
   redirect(`/rechnungen/${inv.id}`);
 }
-
-const PositionSchema = z.object({
-  partId: z.number().int().nullable(),
-  name: z.string().trim().min(1, "Jede Position braucht eine Bezeichnung."),
-  text: z.string(),
-  quantity: z.number(),
-  unit: z.string(),
-  price: z.string(),
-  discount: z.number().min(0).max(100),
-  taxRate: z.number().min(0).max(100),
-});
-
-const DraftSchema = z.object({
-  address: z.string().trim().min(1, "Empfängeradresse fehlt."),
-  invoiceDate: z.string().min(1),
-  deliveryDate: z.string(),
-  deliveryDateUntil: z.string(),
-  timeToPay: z.number().int().min(0),
-  headText: z.string(),
-  footText: z.string(),
-  taxType: z.enum(["default", "eu", "noteu", "ss"]),
-  discount: z.number().min(0).max(100),
-  customerReference: z.string(),
-  positions: z.array(PositionSchema),
-});
-
-export type DraftInput = z.infer<typeof DraftSchema>;
 
 export async function saveDraft(id: number, input: DraftInput): Promise<ActionResult> {
   return run(id, async () => {
@@ -99,15 +63,16 @@ export async function saveDraft(id: number, input: DraftInput): Promise<ActionRe
         where: { id },
         data: {
           address: d.address,
-          invoiceDate: new Date(d.invoiceDate),
-          deliveryDate: d.deliveryDate ? new Date(d.deliveryDate) : null,
-          deliveryDateUntil: d.deliveryDateUntil ? new Date(d.deliveryDateUntil) : null,
+          invoiceDate: new Date(d.date),
+          deliveryDate: optDate(d.deliveryDate),
+          deliveryDateUntil: optDate(d.deliveryDateUntil),
           timeToPay: d.timeToPay,
           headText: d.headText,
           footText: d.footText,
           taxType: d.taxType,
           discount: d.discount,
           customerReference: d.customerReference,
+          eInvoice: d.eInvoice,
           positions: {
             create: d.positions.map((p, i) => ({
               position: i + 1,
@@ -160,11 +125,24 @@ export async function backToDraft(id: number): Promise<ActionResult> {
   return run(id, () => resetToDraft(id));
 }
 
-export async function cancel(id: number): Promise<ActionResult> {
-  let stornoId: number | undefined;
+// Legt einen Folgebeleg an und wechselt dorthin
+async function createAndOpen(id: number, fn: () => Promise<{ id: number }>): Promise<ActionResult> {
+  let target: number | undefined;
   const result = await run(id, async () => {
-    stornoId = (await cancelInvoice(id)).id;
+    target = (await fn()).id;
   });
   if (result.error) return result;
-  redirect(`/rechnungen/${stornoId}`);
+  redirect(`/rechnungen/${target}`);
+}
+
+export async function cancel(id: number): Promise<ActionResult> {
+  return createAndOpen(id, () => cancelInvoice(id));
+}
+
+export async function creditNote(id: number): Promise<ActionResult> {
+  return createAndOpen(id, () => createCreditNoteDraft(id));
+}
+
+export async function dunning(id: number, fee: number): Promise<ActionResult> {
+  return createAndOpen(id, () => createDunningDraft(id, fee));
 }

@@ -12,6 +12,7 @@ async function main() {
       zip: "10115",
       city: "Berlin",
       email: "info@muster-design.example",
+      phone: "+49 30 1234567",
       taxNumber: "30/123/45678",
       vatId: "DE123456789",
       bankName: "Musterbank",

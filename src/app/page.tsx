@@ -10,8 +10,8 @@ export const dynamic = "force-dynamic";
 export default async function Dashboard() {
   const year = new Date().getFullYear();
   const [open, paidThisYear, latest] = await Promise.all([
-    db.invoice.findMany({ where: { status: { in: [200, 750] }, type: { not: "SR" } } }),
-    db.payment.aggregate({ _sum: { amount: true }, where: { date: { gte: new Date(year, 0, 1) } } }),
+    db.invoice.findMany({ where: { status: { in: [200, 750] }, type: { in: ["RE", "AR", "TR", "ER"] } } }),
+    db.payment.aggregate({ _sum: { amount: true }, where: { date: { gte: new Date(year, 0, 1) }, invoice: { type: { in: ["RE", "AR", "TR", "ER"] } } } }),
     db.invoice.findMany({ orderBy: { updatedAt: "desc" }, take: 8, include: { contact: true } }),
   ]);
   const openSum = open.reduce((s, i) => s + i.sumGross - i.paidAmount, 0);
