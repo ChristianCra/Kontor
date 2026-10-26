@@ -19,6 +19,7 @@ const CompanyForm = z.object({
   bankName: z.string().trim(),
   defaultTimeToPay: z.coerce.number().int().min(0),
   smallBusiness: z.string().optional(),
+  chartOfAccounts: z.enum(["skr03", "skr04"]),
   invoiceFormat: z.string().trim().min(1),
   customerFormat: z.string().trim().min(1),
 });

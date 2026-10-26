@@ -1,8 +1,19 @@
 import { PrismaClient } from "@prisma/client";
 
+import { DEFAULT_ACCOUNTING_TYPES } from "../src/lib/accounts-data";
+
 const db = new PrismaClient();
 
 async function main() {
+  if ((await db.accountingType.count()) === 0) await db.accountingType.createMany({ data: DEFAULT_ACCOUNTING_TYPES });
+  if ((await db.bankAccount.count()) === 0) {
+    await db.bankAccount.createMany({
+      data: [
+        { name: "Geschäftskonto", type: "BANK", iban: "DE02120300000000202051", ledgerAccount: "1200" },
+        { name: "Kasse", type: "CASH", ledgerAccount: "1000" },
+      ],
+    });
+  }
   await db.company.upsert({
     where: { id: 1 },
     update: {},

@@ -28,6 +28,12 @@ export default async function Settings() {
             </div>
           ))}
           <div><label className="label">Standard-Zahlungsziel (Tage)</label><input className="input" type="number" name="defaultTimeToPay" defaultValue={company?.defaultTimeToPay ?? 14} /></div>
+          <div>
+            <label className="label">Kontenrahmen</label>
+            <select className="input" name="chartOfAccounts" defaultValue={company?.chartOfAccounts ?? "skr03"}>
+              <option value="skr03">SKR03</option><option value="skr04">SKR04</option>
+            </select>
+          </div>
           <label className="flex items-center gap-2 self-end text-sm"><input type="checkbox" name="smallBusiness" defaultChecked={company?.smallBusiness} /> Kleinunternehmer (§19 UStG)</label>
         </fieldset>
         <fieldset className="grid gap-4 sm:grid-cols-2">

@@ -44,3 +44,6 @@ next-env.d.ts
 # lokale Datenbank
 prisma/*.db
 prisma/*.db-journal
+
+# hochgeladene Belege
+/storage
