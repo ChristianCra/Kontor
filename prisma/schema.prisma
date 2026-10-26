@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Mandant: eigene Firmendaten, erscheinen auf allen Belegen
+model Company {
+  id              Int     @id @default(1)
+  name            String
+  street          String  @default("")
+  zip             String  @default("")
+  city            String  @default("")
+  country         String  @default("DE")
+  email           String  @default("")
+  phone           String  @default("")
+  taxNumber       String  @default("")
+  vatId           String  @default("")
+  iban            String  @default("")
+  bic             String  @default("")
+  bankName        String  @default("")
+  smallBusiness   Boolean @default(false) // Kleinunternehmer nach §19 UStG
+  defaultTimeToPay Int    @default(14)
+}
+
+// Nummernkreise je Belegart, z. B. RE-{YYYY}-{NNNN}
+model NumberSequence {
+  type    String @id // CUSTOMER, INVOICE, ORDER, CREDIT_NOTE
+  format  String
+  next    Int    @default(1)
+}
+
+model Contact {
+  id               Int              @id @default(autoincrement())
+  customerNumber   String           @unique
+  // Organisation, wenn name gesetzt ist, sonst Person
+  name             String?
+  firstName        String?
+  lastName         String?
+  category         String           @default("CUSTOMER") // CUSTOMER, SUPPLIER, PARTNER
+  status           Int              @default(1000)       // 100 Lead, 500 Ausstehend, 1000 Aktiv
+  email            String           @default("")
+  phone            String           @default("")
+  vatId            String           @default("")
+  taxNumber        String           @default("")
+  iban             String           @default("")
+  buyerReference   String           @default("")        // Leitweg-ID für E-Rechnungen an Behörden
+  defaultTimeToPay Int?
+  defaultDiscount  Float            @default(0)
+  taxType          String           @default("default")
+  note             String           @default("")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  addresses        ContactAddress[]
+  invoices         Invoice[]
+}
+
+model ContactAddress {
+  id        Int     @id @default(autoincrement())
+  contactId Int
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  kind      String  @default("BILLING") // BILLING, DELIVERY
+  street    String  @default("")
+  zip       String  @default("")
+  city      String  @default("")
+  country   String  @default("DE")
+}
+
+model Unit {
+  id    Int    @id @default(autoincrement())
+  name  String @unique // Stk, Std, Tag, Pauschal, km
+  parts Part[]
+}
+
+model Part {
+  id         Int      @id @default(autoincrement())
+  partNumber String   @unique
+  name       String
+  text       String   @default("")
+  unitId     Int
+  unit       Unit     @relation(fields: [unitId], references: [id])
+  priceNet   Int      // Cent
+  pricePurchase Int   @default(0)
+  taxRate    Float    @default(19)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+}
+
+model Invoice {
+  id             Int        @id @default(autoincrement())
+  // Nummer wird erst beim Abschließen vergeben (Entwürfe haben keine)
+  invoiceNumber  String?    @unique
+  type           String     @default("RE") // RE, SR (Storno), MA (Mahnung), AR, TR, ER
+  status         Int        @default(100)  // 100 Entwurf, 200 Offen, 750 Teilbezahlt, 1000 Bezahlt
+  contactId      Int
+  contact        Contact    @relation(fields: [contactId], references: [id])
+  address        String     // Empfängeradresse als Text, eingefroren beim Abschließen
+  invoiceDate    DateTime
+  deliveryDate   DateTime?
+  deliveryDateUntil DateTime?
+  timeToPay      Int        @default(14)
+  header         String     @default("Rechnung")
+  headText       String     @default("")
+  footText       String     @default("")
+  taxType        String     @default("default") // default, eu, noteu, ss
+  currency       String     @default("EUR")
+  showNet        Boolean    @default(true)
+  discount       Float      @default(0)
+  customerReference String  @default("")
+  sumNet         Int        @default(0)
+  sumTax         Int        @default(0)
+  sumGross       Int        @default(0)
+  paidAmount     Int        @default(0)
+  dunningLevel   Int        @default(0)
+  sentAt         DateTime?
+  enshrinedAt    DateTime?  // festgeschrieben, danach unveränderbar (GoBD)
+  cancelsId      Int?       @unique
+  cancels        Invoice?   @relation("Storno", fields: [cancelsId], references: [id])
+  cancelledBy    Invoice?   @relation("Storno")
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  positions      InvoicePosition[]
+  payments       Payment[]
+}
+
+model InvoicePosition {
+  id         Int     @id @default(autoincrement())
+  invoiceId  Int
+  invoice    Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position   Int
+  partId     Int?
+  name       String
+  text       String  @default("")
+  quantity   Float
+  unit       String  @default("Stk")
+  priceNet   Int     // Cent pro Einheit
+  discount   Float   @default(0) // Prozent
+  taxRate    Float
+}
+
+model Payment {
+  id        Int      @id @default(autoincrement())
+  invoiceId Int
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  date      DateTime
+  amount    Int      // Cent
+  note      String   @default("")
+  createdAt DateTime @default(now())
+}

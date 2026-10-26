@@ -1,0 +1,44 @@
+"use client";
+
+import { useActionState, useState, useTransition } from "react";
+import { addPayment, backToDraft, cancel, enshrine, markSent, type ActionResult } from "@/app/actions/invoices";
+import { centsToInput } from "@/lib/money";
+
+type Props = { id: number; status: number; type: string; open: number; enshrined: boolean; sent: boolean; hasPayments: boolean; cancelled: boolean };
+
+export function InvoiceActions(p: Props) {
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string>();
+  const [payState, payAction, paying] = useActionState<ActionResult, FormData>(addPayment.bind(null, p.id), {});
+  const call = (fn: (id: number) => Promise<ActionResult>, confirmText?: string) => {
+    if (confirmText && !window.confirm(confirmText)) return;
+    setError(undefined);
+    start(async () => {
+      const res = await fn(p.id);
+      if (res?.error) setError(res.error);
+    });
+  };
+  const today = new Date().toISOString().slice(0, 10);
+  const canPay = p.type !== "SR" && (p.status === 200 || p.status === 750);
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        <a className="btn-primary" href={`/rechnungen/${p.id}/pdf`} target="_blank">PDF öffnen</a>
+        {!p.sent && <button className="btn" disabled={pending} onClick={() => call(markSent)}>Als versendet markieren</button>}
+        {!p.enshrined && <button className="btn" disabled={pending} onClick={() => call(enshrine, "Festgeschriebene Rechnungen können nicht mehr geändert werden. Fortfahren?")}>Festschreiben</button>}
+        {!p.enshrined && !p.hasPayments && <button className="btn" disabled={pending} onClick={() => call(backToDraft)}>Zurück zu Entwurf</button>}
+        {p.type !== "SR" && !p.cancelled && !p.hasPayments && <button className="btn-danger" disabled={pending} onClick={() => call(cancel, "Stornorechnung erstellen?")}>Stornieren</button>}
+      </div>
+      {error && <div className="text-sm text-danger">{error}</div>}
+      {canPay && (
+        <form action={payAction} className="card grid gap-3 sm:grid-cols-4 sm:items-end">
+          <div><label className="label">Zahlungseingang</label><input className="input text-right" name="amount" inputMode="decimal" defaultValue={centsToInput(p.open)} /></div>
+          <div><label className="label">Datum</label><input className="input" type="date" name="date" defaultValue={today} /></div>
+          <div><label className="label">Notiz</label><input className="input" name="note" /></div>
+          <button className="btn-primary" disabled={paying}>Zahlung buchen</button>
+          {payState.error && <div className="text-sm text-danger sm:col-span-4">{payState.error}</div>}
+        </form>
+      )}
+    </div>
+  );
+}
