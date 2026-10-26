@@ -19,6 +19,7 @@ export function OrderActions({ id, type, status, sent, hasFollowUps }: { id: num
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
         <a className="btn-primary" href={`/angebote/${id}/pdf`} target="_blank">PDF öffnen</a>
+        {status !== 100 && <a className="btn" href={`/angebote/${id}/senden`}>Per E-Mail senden</a>}
         {!sent && <button className="btn" disabled={pending} onClick={() => call(() => markOrderSent(id))}>Als versendet markieren</button>}
         {type === "AN" && status === 200 && (
           <>

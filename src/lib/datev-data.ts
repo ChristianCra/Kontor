@@ -1,19 +1,21 @@
 import { db } from "./db";
 import { getCompany } from "./company";
 import { loadJournal } from "./journal-data";
+import { loadAfa } from "./assets";
 import type { Period } from "./journal";
 import type { DatevSettings, DatevTransaction } from "./datev";
 
 export async function loadDatevInput(period: Period) {
   const company = await getCompany();
   const chart = company.chartOfAccounts as "skr03" | "skr04";
-  const [entries, payments, accounts] = await Promise.all([
+  const [entries, payments, accounts, afa] = await Promise.all([
     loadJournal(chart),
     db.payment.findMany({
       where: { date: { gte: period.from, lt: period.to }, OR: [{ transactionId: { not: null } }, { accountId: { not: null } }] },
       include: { invoice: true, voucher: true, transaction: true },
     }),
     db.bankAccount.findMany(),
+    loadAfa(chart),
   ]);
   // SKR04 verwendet für Bank 1800 und Kasse 1600
   const ledger = (a: { ledgerAccount: string; type: string }) => (chart === "skr04" ? (a.type === "CASH" ? "1600" : "1800") : a.ledgerAccount);
@@ -44,5 +46,5 @@ export async function loadDatevInput(period: Period) {
   const noSupplier = inPeriod.filter((e) => e.direction === "out" && !e.contactId);
   if (noSupplier.length) problems.push(`${new Set(noSupplier.map((e) => e.docId)).size} Belege ohne verknüpften Lieferanten laufen über den Sammelkreditor 70000.`);
   const open = inPeriod.filter((e) => !e.enshrined);
-  return { entries, transactions, settings, problems, docCount: new Set(inPeriod.map((e) => `${e.source}${e.docId}`)).size, openCount: new Set(open.map((e) => `${e.source}${e.docId}`)).size };
+  return { entries, transactions, afa: afa.items, settings, problems, docCount: new Set(inPeriod.map((e) => `${e.source}${e.docId}`)).size, openCount: new Set(open.map((e) => `${e.source}${e.docId}`)).size };
 }

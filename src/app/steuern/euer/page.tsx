@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { getCompany } from "@/lib/company";
 import { loadJournal } from "@/lib/journal-data";
 import { periodFor } from "@/lib/journal";
 import { computeEuer, type EuerLine } from "@/lib/euer";
+import { loadAfa } from "@/lib/assets";
 import { formatCents } from "@/lib/money";
 import { elsterValue } from "@/lib/ustva";
 import { PeriodPicker, parsePeriodParams, periodLabel } from "@/components/PeriodPicker";
@@ -15,11 +17,12 @@ function Lines({ lines, showAccounts }: { lines: EuerLine[]; showAccounts: boole
       {lines.filter((l) => l.amount).map((l) => (
         <tbody key={l.key}>
           <tr>
+            <td className="w-16 text-xs text-muted tabular-nums">{l.row ? `Z. ${l.row}` : ""}{l.kz && <div>Kz {l.kz}</div>}</td>
             <td>{l.label}{l.note && <span className="text-xs text-muted"> ({l.note})</span>}</td>
             <td className="num">{formatCents(l.amount)} <CopyValue value={elsterValue(l.amount)} /></td>
           </tr>
           {showAccounts && [...l.accounts.entries()].map(([nr, a]) => (
-            <tr key={nr} className="text-xs text-muted"><td className="pl-8">{nr} · {a.name}</td><td className="num">{formatCents(a.amount)}</td></tr>
+            <tr key={nr} className="text-xs text-muted"><td /><td className="pl-4">{nr} · {a.name}</td><td className="num">{formatCents(a.amount)}</td></tr>
           ))}
         </tbody>
       ))}
@@ -31,7 +34,10 @@ export default async function Euer({ searchParams }: { searchParams: Promise<{ j
   const sp = await searchParams;
   const company = await getCompany();
   const { year, kind, index } = parsePeriodParams(sp, "YEAR");
-  const report = computeEuer(await loadJournal(company.chartOfAccounts as "skr03" | "skr04"), periodFor(kind, year, index));
+  const chart = company.chartOfAccounts as "skr03" | "skr04";
+  const afa = await loadAfa(chart);
+  const report = computeEuer(await loadJournal(chart), periodFor(kind, year, index), afa.items);
+  report.warnings.push(...afa.warnings);
   const showAccounts = sp.konten === "1";
   return (
     <div className="space-y-4">
@@ -49,20 +55,20 @@ export default async function Euer({ searchParams }: { searchParams: Promise<{ j
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="card overflow-x-auto p-0">
           <table className="table">
-            <thead><tr><th>Betriebseinnahmen</th><th className="num">Betrag</th></tr></thead>
+            <thead><tr><th>Zeile</th><th>Betriebseinnahmen</th><th className="num">Betrag</th></tr></thead>
             <Lines lines={report.income} showAccounts={showAccounts} />
-            <tfoot><tr className="font-semibold"><td>Summe Betriebseinnahmen</td><td className="num">{formatCents(report.totalIncome)}</td></tr></tfoot>
+            <tfoot><tr className="font-semibold"><td className="text-xs">Z. 23</td><td>Summe Betriebseinnahmen</td><td className="num">{formatCents(report.totalIncome)}</td></tr></tfoot>
           </table>
         </div>
         <div className="card overflow-x-auto p-0">
           <table className="table">
-            <thead><tr><th>Betriebsausgaben</th><th className="num">Betrag</th></tr></thead>
+            <thead><tr><th>Zeile</th><th>Betriebsausgaben</th><th className="num">Betrag</th></tr></thead>
             <Lines lines={report.expenses} showAccounts={showAccounts} />
-            <tfoot><tr className="font-semibold"><td>Summe Betriebsausgaben</td><td className="num">{formatCents(report.totalExpenses)}</td></tr></tfoot>
+            <tfoot><tr className="font-semibold"><td className="text-xs">Z. 75</td><td>Summe Betriebsausgaben</td><td className="num">{formatCents(report.totalExpenses)}</td></tr></tfoot>
           </table>
           {report.nonDeductible.some((l) => l.amount) && (
             <table className="table">
-              <thead><tr><th>Nicht abziehbare Betriebsausgaben</th><th /></tr></thead>
+              <thead><tr><th>Zeile</th><th>Nicht abziehbare Betriebsausgaben</th><th /></tr></thead>
               <Lines lines={report.nonDeductible} showAccounts={showAccounts} />
             </table>
           )}
@@ -72,7 +78,7 @@ export default async function Euer({ searchParams }: { searchParams: Promise<{ j
         <span>{report.profit >= 0 ? "Gewinn" : "Verlust"}</span>
         <span className={`tabular-nums ${report.profit < 0 ? "text-danger" : ""}`}>{formatCents(report.profit)}</span>
       </div>
-      <p className="text-xs text-muted">Die Gruppen orientieren sich an der Anlage EÜR. Abschreibungen auf Anlagegüter (außer GWG) werden noch nicht berechnet.</p>
+      <p className="text-xs text-muted">Zeilen und Kennzahlen nach dem Vordruck der Anlage EÜR {report.formYear}{year !== report.formYear && ` (für ${year} bitte mit dem aktuellen Vordruck abgleichen, die Zeilennummern ändern sich gelegentlich)`}. Abschreibungen kommen aus dem <Link className="underline" href="/anlagen">Anlagenverzeichnis</Link>. Die Auswertung ersetzt keine Steuerberatung.</p>
     </div>
   );
 }

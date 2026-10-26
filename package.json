@@ -13,11 +13,12 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
-    "@prisma/client": "^6.16.2",
-    "fast-xml-parser": "^5.2.5",
-    "next": "15.5.4",
+    "@prisma/client": "^6.19.3",
+    "fast-xml-parser": "^5.11.2",
+    "next": "^15.5.28",
+    "nodemailer": "^10.2.1",
     "pdf-lib": "^1.17.1",
-    "prisma": "^6.16.2",
+    "prisma": "^6.19.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "zod": "^3.25.76"
@@ -26,23 +27,24 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.5.4",
+    "eslint-config-next": "^15.5.28",
     "tailwindcss": "^4",
     "tsx": "^4.20.5",
     "typescript": "^5",
     "vitest": "^3.2.4"
   },
   "allowScripts": {
-    "@prisma/client@6.16.2": true,
-    "@prisma/engines@6.16.2": true,
     "esbuild@0.25.12": true,
     "esbuild@0.28.2": true,
-    "prisma@6.16.2": true,
     "sharp@0.34.5": true,
-    "unrs-resolver@1.12.2": true
+    "unrs-resolver@1.12.2": true,
+    "prisma@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "@prisma/client@6.19.3": true
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -2,7 +2,7 @@
 
 Rechnungen, Belege und Buchhaltung für Selbstständige und kleine Unternehmen in Deutschland. Funktional orientiert an SevDesk: Das Verhalten wurde aus der öffentlichen SevDesk-API und mit [REA](https://github.com/morluto/rea) abgeleitet, Code, Name und Design sind eigenständig.
 
-## Stand (Etappe 1 bis 4)
+## Stand (Etappe 1 bis 5)
 
 - Kontakte (Organisation/Person, Rechnungsadresse, Steuer- und Bankdaten, Besteuerungsart, Kundennummernkreis)
 - Artikel mit Einheiten, Preisen und Steuersätzen
@@ -22,7 +22,12 @@ Rechnungen, Belege und Buchhaltung für Selbstständige und kleine Unternehmen i
 - DATEV-Export: Buchungsstapel EXTF 700 als CSV (Latin-1) mit Debitoren und Kreditoren, BU-Schlüsseln, Prüfung des Zeitraums und optionalem Festschreiben der exportierten Belege
 - Einstellungen für Kontenrahmen (SKR03/SKR04), Versteuerungsart, Voranmeldungszeitraum, Berater- und Mandantennummer
 
-Geplant: Anlagenverzeichnis und AfA, ELSTER-Übermittlung, E-Mail-Versand, Login.
+- Anmeldung mit E-Mail und Passwort (scrypt), Ersteinrichtung beim ersten Start, Benutzerverwaltung, Passwortwechsel meldet andere Sitzungen ab; alle Seiten, Downloads und Server-Actions sind geschützt
+- E-Mail-Versand von Rechnungen, Gutschriften, Mahnungen und Angeboten mit PDF (und XRechnung-XML), bearbeitbare Vorlagen mit Platzhaltern, Versandprotokoll; ohne SMTP-Server Testmodus mit `.eml`-Dateien in `storage/outbox`
+- Anlagenverzeichnis: Anlagegüter aus Belegen mit Anlagekonto werden automatisch übernommen oder manuell erfasst; lineare AfA monatsgenau, digitale Wirtschaftsgüter (1 Jahr), GWG bis 800 € sofort, Sammelposten über 5 Jahre, Abgang mit Restbuchwert
+- EÜR nach Zeilen und Kennzahlen der Anlage EÜR (Vordruck 2025), inklusive AfA; AfA-Buchungen auch im DATEV-Export
+
+Nicht enthalten: direkte ELSTER-Übermittlung (dafür ist die ERiC-Bibliothek mit eigener Hersteller-ID nötig). Die UStVA- und EÜR-Werte lassen sich je Kennzahl kopieren und in „Mein ELSTER“ eintragen.
 
 ## Entwicklung
 
@@ -30,12 +35,14 @@ Voraussetzungen: Node.js 20+.
 
 ```bash
 npm install
-cp .env.example .env
+cp .env.example .env     # AUTH_SECRET setzen, optional SMTP_URL und MAIL_FROM
 npx prisma migrate dev   # legt die SQLite-Datenbank an und spielt Beispieldaten ein
 npm run dev              # http://localhost:3000
 npm test                 # Unit-Tests der Rechenlogik
 ```
 
-Hochgeladene Belege landen in `./storage` (anpassbar über `STORAGE_DIR`).
+Beim ersten Aufruf legt man das erste Benutzerkonto an. Im Produktivbetrieb ist `AUTH_SECRET` Pflicht, sonst ist keine Anmeldung möglich.
+
+Hochgeladene Belege und E-Mails im Testmodus landen in `./storage` (anpassbar über `STORAGE_DIR`).
 
 Beträge werden als ganze Cent gespeichert. Die Umsatzsteuer wird je Steuersatz gruppiert und auf Gruppenebene gerundet.

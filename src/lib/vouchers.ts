@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { db } from "./db";
 import { paymentStatus, voucherPositionSums } from "./calc";
+import { removeAssetsOfVoucher, syncAssetsFromVouchers } from "./assets";
 
 export const VOUCHER_STATUS: Record<number, string> = {
   50: "Entwurf",
@@ -64,12 +65,14 @@ export async function finalizeVoucher(id: number) {
   if (v.sumGross < 0) throw new Error("Der Gesamtbetrag darf nicht negativ sein.");
   if (!(v.taxType in VOUCHER_TAX_TYPES[v.creditDebit as "D" | "C"])) throw new Error("Die Steuerregel passt nicht zur Belegart.");
   await db.voucher.update({ where: { id }, data: { status: v.paidAmount > 0 ? paymentStatus(v.sumGross, v.paidAmount) : 100 } });
+  await syncAssetsFromVouchers();
 }
 
 export async function voucherToDraft(id: number) {
   const v = await db.voucher.findUniqueOrThrow({ where: { id }, include: { payments: true } });
   if (v.enshrinedAt) throw new Error("Festgeschriebene Belege können nicht geändert werden.");
   if (v.payments.length) throw new Error("Belege mit Zahlungen können nicht zurückgesetzt werden.");
+  await removeAssetsOfVoucher(id);
   await db.voucher.update({ where: { id }, data: { status: 50 } });
 }
 

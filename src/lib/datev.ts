@@ -1,4 +1,5 @@
 import type { JournalEntry, Period } from "./journal";
+import type { AssetAfa } from "./euer";
 
 // DATEV-Format „Buchungsstapel“ (EXTF, Version 700) für den Import in DATEV Rechnungswesen
 
@@ -36,7 +37,21 @@ export function validatePeriod(p: Period, fiscalYearStart: Date): string | null 
   return null;
 }
 
-export function buildDatevCsv(entries: JournalEntry[], transactions: DatevTransaction[], p: Period, s: DatevSettings, enshrine: boolean, now = new Date()): { csv: string; lines: number } {
+// Aufwandskonten der Abschreibung je Art (SKR03/SKR04)
+function afaAccount(i: AssetAfa, chart: "skr03" | "skr04"): string | null {
+  const intangible = i.account.number === (chart === "skr03" ? "0027" : "0135");
+  const map: Record<AssetAfa["kind"], [string, string] | null> = {
+    afa: intangible ? ["4822", "6200"] : ["4830", "6220"],
+    gwg: ["4855", "6260"],
+    pool: ["4862", "6264"],
+    residual: ["2310", "6895"],
+    proceeds: null,
+  };
+  const m = map[i.kind];
+  return m ? m[chart === "skr03" ? 0 : 1] : null;
+}
+
+export function buildDatevCsv(entries: JournalEntry[], transactions: DatevTransaction[], p: Period, s: DatevSettings, enshrine: boolean, now = new Date(), afa: AssetAfa[] = []): { csv: string; lines: number } {
   const last = new Date(p.to.getTime() - 1);
   const header = [
     '"EXTF"', "700", "21", '"Buchungsstapel"', "13", `${ymd(now)}${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}000`,
@@ -67,5 +82,17 @@ export function buildDatevCsv(entries: JournalEntry[], transactions: DatevTransa
     if (t.direction === "in") row(t.amount, bank, party, "", t.date, t.docNumber, `Zahlung ${t.party}`);
     else row(t.amount, party, bank, "", t.date, t.docNumber, `Zahlung ${t.party}`);
   }
+  // Abschreibungen: Soll AfA-Konto, Haben Anlagekonto. Monatswerte werden je Anlagegut und Konto zusammengefasst.
+  const afaSums = new Map<string, { cents: number; account: string; contra: string; date: Date; text: string }>();
+  for (const i of afa) {
+    const account = afaAccount(i, s.chart);
+    if (!account || i.date < p.from || i.date >= p.to) continue;
+    const key = `${i.assetId}:${account}`;
+    const cur = afaSums.get(key) ?? { cents: 0, account, contra: i.account.number, date: i.date, text: `${i.kind === "residual" ? "Abgang" : "AfA"} ${i.name}` };
+    cur.cents += i.amount;
+    if (i.date > cur.date) cur.date = i.date;
+    afaSums.set(key, cur);
+  }
+  for (const [key, a] of afaSums) row(a.cents, a.account, a.contra, "", a.date, `AfA-${key.split(":")[0]}`, a.text);
   return { csv: [header, columns, ...rows].join("\r\n") + "\r\n", lines: rows.length };
 }

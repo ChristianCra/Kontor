@@ -182,6 +182,7 @@ model AccountingType {
   defaultTaxRate Float   @default(19)
   active         Boolean @default(true)
   positions      VoucherPosition[]
+  assets         Asset[]
 }
 
 // Beleg: Eingangsrechnung, Quittung oder sonstige Einnahme
@@ -215,6 +216,7 @@ model Voucher {
   updatedAt     DateTime  @updatedAt
   positions     VoucherPosition[]
   payments      Payment[]
+  assets        Asset[]
 }
 
 model VoucherPosition {
@@ -325,5 +327,58 @@ model DatevExport {
   to        DateTime
   lines     Int
   enshrined Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// Anlagegut für das Anlagenverzeichnis und die Abschreibung (AfA)
+model Asset {
+  id                Int            @id @default(autoincrement())
+  name              String
+  inventoryNumber   String         @default("")
+  accountingTypeId  Int
+  accountingType    AccountingType @relation(fields: [accountingTypeId], references: [id])
+  method            String         @default("linear") // linear, digital (1 Jahr), gwg (sofort), pool (Sammelposten, 5 Jahre)
+  acquisitionDate   DateTime
+  cost              Int            // Anschaffungskosten in Cent (netto, ohne Vorsteuerabzug brutto)
+  usefulLifeYears   Int            @default(1)
+  voucherId         Int?
+  voucher           Voucher?       @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  voucherPositionId Int?           @unique
+  disposalDate      DateTime?
+  disposalProceeds  Int            @default(0) // Verkaufserlös netto in Cent
+  note              String         @default("")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+// Benutzer mit Zugang zur Anwendung
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  name         String   @default("")
+  passwordHash String
+  // Wird beim Passwortwechsel erhöht und macht bestehende Sitzungen ungültig
+  sessionVersion Int    @default(1)
+  createdAt    DateTime @default(now())
+}
+
+// Vorlage für den E-Mail-Versand je Belegart
+model MailTemplate {
+  docType String @id // INVOICE, ORDER, CREDIT_NOTE, DUNNING
+  subject String
+  body    String
+}
+
+// Protokoll versendeter E-Mails
+model MailLog {
+  id        Int      @id @default(autoincrement())
+  docType   String   // invoice, order
+  docId     Int
+  to        String
+  cc        String   @default("")
+  subject   String
+  messageId String   @default("")
+  testMode  Boolean  @default(false)
+  sentBy    String   @default("")
   createdAt DateTime @default(now())
 }

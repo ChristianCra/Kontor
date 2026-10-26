@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   const input = await loadDatevInput(period);
   const error = validatePeriod(period, input.settings.fiscalYearStart);
   if (error) return new Response(error, { status: 400, headers: { "Content-Type": "text/plain; charset=utf-8" } });
-  const { csv, lines } = buildDatevCsv(input.entries, input.transactions, period, input.settings, enshrine);
+  const { csv, lines } = buildDatevCsv(input.entries, input.transactions, period, input.settings, enshrine, new Date(), input.afa);
   if (enshrine) {
     // Exportierte Dokumente werden festgeschrieben (GoBD)
     const now = new Date();

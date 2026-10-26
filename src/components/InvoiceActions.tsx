@@ -40,6 +40,7 @@ export function InvoiceActions(p: Props) {
       <div className="flex flex-wrap gap-2">
         <a className="btn-primary" href={`/rechnungen/${p.id}/pdf`} target="_blank">PDF öffnen</a>
         {p.eInvoice && <a className="btn" href={`/rechnungen/${p.id}/xml`}>XRechnung (XML)</a>}
+        <a className="btn" href={`/rechnungen/${p.id}/senden`}>Per E-Mail senden</a>
         {!p.sent && <button className="btn" disabled={pending} onClick={() => call(markSent)}>Als versendet markieren</button>}
         {!p.enshrined && <button className="btn" disabled={pending} onClick={() => call(enshrine, "Festgeschriebene Rechnungen können nicht mehr geändert werden. Fortfahren?")}>Festschreiben</button>}
         {!p.enshrined && !p.hasPayments && <button className="btn" disabled={pending} onClick={() => call(backToDraft)}>Zurück zu Entwurf</button>}

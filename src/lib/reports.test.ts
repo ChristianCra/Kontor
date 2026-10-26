@@ -3,6 +3,7 @@ import { invoiceEntries, voucherEntries, type Period } from "./journal";
 import { computeUstva } from "./ustva";
 import { computeEuer } from "./euer";
 import { buildDatevCsv, validatePeriod } from "./datev";
+import { afaSchedule } from "./afa";
 
 const q3: Period = { from: new Date(2026, 6, 1), to: new Date(2026, 9, 1) };
 const contact = { name: "Kunde AG", firstName: null, lastName: null };
@@ -72,6 +73,16 @@ describe("EÜR", () => {
     expect(r.profit).toBe(11900 - 5000 - 7000 - 2850);
   });
 
+  it("bucht Anlagegüter über die AfA und die Vorsteuer sofort", () => {
+    const laptop = voucher({ id: 5, sumGross: 238000, positions: [{ taxRate: 19, sumNet: 200000, sumTax: 38000, sumGross: 238000, accountingType: acct("0420", "ASSET", "BGA") }], payments: [{ date: new Date(2026, 6, 25), amount: 238000, transactionId: null }] });
+    const asset = { id: 9, name: "Schreibtisch", method: "linear", acquisitionDate: new Date(2026, 6, 1), cost: 200000, usefulLifeYears: 10, disposalDate: null, disposalProceeds: 0 };
+    const afa = afaSchedule(asset).map((i) => ({ ...i, name: asset.name, account: { number: "0420", name: "BGA" } }));
+    const r = computeEuer(voucherEntries(laptop, "skr03"), q3, afa);
+    expect(r.expenses.find((l) => l.key === "afa")).toMatchObject({ row: 33, kz: "130", amount: 5000 }); // 3 Monate à 16,67 €
+    expect(r.expenses.find((l) => l.key === "vst")!.amount).toBe(38000);
+    expect(r.totalExpenses).toBe(43000);
+  });
+
   it("ignoriert unbezahlte Rechnungen", () => {
     const r = computeEuer(invoiceEntries(invoice({ payments: [] }), "skr03"), q3);
     expect(r.totalIncome).toBe(0);
@@ -94,5 +105,13 @@ describe("DATEV", () => {
     expect(lines).toBe(2);
     expect(rows[2]).toBe('119,00;"S";"EUR";;;;10001;8400;;1507;"RE-2026-0001";;;"Kunde AG RE-2026-0001"');
     expect(rows[3]).toBe('59,50;"S";"EUR";;;;4920;70000;"9";2007;"4711";;;"Telekom 4711"');
+  });
+
+  it("exportiert die AfA je Anlagegut", () => {
+    const asset = { id: 9, name: "Schreibtisch", method: "linear", acquisitionDate: new Date(2026, 6, 1), cost: 200000, usefulLifeYears: 10, disposalDate: null, disposalProceeds: 0 };
+    const afa = afaSchedule(asset).map((i) => ({ ...i, name: asset.name, account: { number: "0420", name: "BGA" } }));
+    const { csv, lines } = buildDatevCsv([], [], q3, { advisor: "1001", client: "1", fiscalYearStart: new Date(2026, 0, 1), chart: "skr03", bankAccounts: new Map() }, false, new Date(), afa);
+    expect(lines).toBe(1);
+    expect(csv.trim().split("\r\n")[2]).toBe('50,00;"S";"EUR";;;;4830;0420;;3009;"AfA-9";;;"AfA Schreibtisch"');
   });
 });

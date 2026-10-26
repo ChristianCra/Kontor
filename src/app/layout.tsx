@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { getCurrentUser } from "@/lib/auth";
+import { logout } from "@/app/actions/auth";
 
 export const metadata: Metadata = {
   title: "Kontor",
@@ -15,13 +17,23 @@ const NAV = [
   { href: "/rechnungen", label: "Rechnungen" },
   { href: "/belege", label: "Belege" },
   { href: "/bank", label: "Bank" },
+  { href: "/anlagen", label: "Anlagen" },
   { href: "/steuern/ustva", label: "UStVA" },
   { href: "/steuern/euer", label: "EÜR" },
   { href: "/steuern/datev", label: "DATEV-Export" },
   { href: "/einstellungen", label: "Einstellungen" },
 ];
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const user = await getCurrentUser();
+  if (!user) {
+    // Anmeldeseite ohne Navigation
+    return (
+      <html lang="de">
+        <body className="antialiased"><main className="p-4">{children}</main></body>
+      </html>
+    );
+  }
   return (
     <html lang="de">
       <body className="antialiased">
@@ -35,6 +47,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 </Link>
               ))}
             </nav>
+            <div className="border-t border-border px-5 py-3 text-xs text-muted">
+              <div className="truncate">{user.name || user.email}</div>
+              <div className="mt-1 flex gap-3">
+                <Link href="/einstellungen/benutzer" className="hover:underline">Benutzer</Link>
+                <form action={logout}><button className="hover:underline">Abmelden</button></form>
+              </div>
+            </div>
           </aside>
           <main className="flex-1 p-4 md:p-8">{children}</main>
         </div>

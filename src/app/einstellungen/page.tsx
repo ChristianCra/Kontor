@@ -17,7 +17,13 @@ export default async function Settings() {
   const next = seqs.find((s) => s.type === "INVOICE")?.next ?? 1;
   return (
     <div className="space-y-4">
-      <h1 className="h1">Einstellungen</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="h1">Einstellungen</h1>
+        <div className="flex gap-2">
+          <a className="btn" href="/einstellungen/benutzer">Benutzer</a>
+          <a className="btn" href="/einstellungen/vorlagen">E-Mail-Vorlagen</a>
+        </div>
+      </div>
       <form action={saveSettings} className="card max-w-3xl space-y-5">
         <fieldset className="grid gap-4 sm:grid-cols-2">
           <legend className="mb-2 text-sm font-medium">Firmendaten (erscheinen auf allen Belegen)</legend>
