@@ -28,6 +28,7 @@ export const DEFAULT_ACCOUNTING_TYPES: { name: string; kind: string; skr03: stri
   { name: "Erlöse innergemeinschaftlich steuerfrei", kind: "REVENUE", skr03: "8125", skr04: "4125", defaultTaxRate: 0 },
   { name: "Erlöse Drittland steuerfrei", kind: "REVENUE", skr03: "8120", skr04: "4120", defaultTaxRate: 0 },
   { name: "Sonstige Erträge", kind: "REVENUE", skr03: "2700", skr04: "4830", defaultTaxRate: 19 },
+  { name: "Umsatzsteuer-Vorauszahlungen", kind: "TAX", skr03: "1780", skr04: "3820", defaultTaxRate: 0 },
   { name: "Privateinlage", kind: "PRIVATE", skr03: "1890", skr04: "2180", defaultTaxRate: 0 },
   { name: "Privatentnahme", kind: "PRIVATE", skr03: "1800", skr04: "2100", defaultTaxRate: 0 },
 ];

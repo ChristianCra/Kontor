@@ -15,6 +15,9 @@ const NAV = [
   { href: "/rechnungen", label: "Rechnungen" },
   { href: "/belege", label: "Belege" },
   { href: "/bank", label: "Bank" },
+  { href: "/steuern/ustva", label: "UStVA" },
+  { href: "/steuern/euer", label: "EÜR" },
+  { href: "/steuern/datev", label: "DATEV-Export" },
   { href: "/einstellungen", label: "Einstellungen" },
 ];
 

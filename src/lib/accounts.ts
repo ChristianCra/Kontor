@@ -3,9 +3,11 @@ import { DEFAULT_ACCOUNTING_TYPES } from "./accounts-data";
 
 export { DEFAULT_ACCOUNTING_TYPES };
 
+// Legt fehlende Standardkonten an (auch neu hinzugekommene in bestehenden Datenbanken)
 export async function ensureAccountingTypes() {
-  if ((await db.accountingType.count()) > 0) return;
-  await db.accountingType.createMany({ data: DEFAULT_ACCOUNTING_TYPES });
+  const existing = new Set((await db.accountingType.findMany({ select: { skr03: true } })).map((a) => a.skr03));
+  const missing = DEFAULT_ACCOUNTING_TYPES.filter((a) => !existing.has(a.skr03));
+  if (missing.length) await db.accountingType.createMany({ data: missing });
 }
 
 export const KIND_LABEL: Record<string, string> = {
@@ -13,4 +15,5 @@ export const KIND_LABEL: Record<string, string> = {
   REVENUE: "Einnahme",
   ASSET: "Anlagevermögen",
   PRIVATE: "Privat",
+  TAX: "Steuern",
 };
