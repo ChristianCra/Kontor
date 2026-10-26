@@ -56,7 +56,38 @@ Beim ersten Aufruf legt man das erste Benutzerkonto an. Anschließend unter „E
 
 Wer Beispieldaten zum Ausprobieren möchte, ruft zusätzlich `npx prisma db seed` auf.
 
-### Auf einem Server (z. B. ein kleiner VPS)
+### Mit Docker (empfohlen für Server und NAS)
+
+Auf dem Rechner wird nur Docker mit Compose gebraucht, kein Node.js:
+
+```bash
+git clone https://github.com/ChristianCra/Kontor.git
+cd Kontor
+docker compose up -d --build
+```
+
+Kontor läuft danach unter http://localhost:3000. Den Port ändert man mit `KONTOR_PORT=8080 docker compose up -d`. Beim Start legt der Container die Datenbank an bzw. spielt neue Migrationen ein. Ohne `AUTH_SECRET` erzeugt er beim ersten Start selbst einen Schlüssel und legt ihn im Datenvolume ab.
+
+Datenbank, Belege und der Schlüssel liegen im Docker-Volume `kontor-data` (im Container unter `/data`). Für den E-Mail-Versand legt man neben `docker-compose.yml` eine Datei `.env` an:
+
+```bash
+SMTP_URL=smtps://benutzer:passwort@smtp.example.com:465
+MAIL_FROM="Muster Design GmbH <rechnung@example.com>"
+```
+
+Aktualisieren: `git pull && docker compose up -d --build`
+
+Sichern, zum Beispiel nachts per Cron. Damit die Datenbank in einem stimmigen Zustand gesichert wird, hält man Kontor dafür kurz an:
+
+```bash
+docker compose stop
+docker run --rm -v kontor_kontor-data:/data -v "$PWD":/backup busybox tar czf /backup/kontor-$(date +%F).tar.gz -C /data .
+docker compose start
+```
+
+Der Volume-Name setzt sich aus dem Ordnernamen und `kontor-data` zusammen, `docker volume ls` zeigt ihn an. Für den Zugriff aus dem Internet gehört auch hier ein Reverse Proxy mit HTTPS davor, wie unten beschrieben.
+
+### Ohne Docker auf einem Server (z. B. ein kleiner VPS)
 
 1. Schritte wie oben ausführen, `PORT` nach Bedarf setzen (`PORT=3000 npm start`).
 2. Den Prozess dauerhaft laufen lassen, zum Beispiel mit einer systemd-Unit:
@@ -81,7 +112,7 @@ Wer Beispieldaten zum Ausprobieren möchte, ruft zusätzlich `npx prisma db seed
 4. Für den echten E-Mail-Versand `SMTP_URL` und `MAIL_FROM` in `.env` setzen. Ohne SMTP-Zugang landen E-Mails nur als Datei in `storage/outbox`.
 5. Regelmäßig `prisma/dev.db` und den Ordner `storage/` sichern. Dort liegen alle Buchhaltungsdaten und Belege, die nach GoBD zehn Jahre aufbewahrt werden müssen.
 
-### Aktualisieren
+### Aktualisieren (ohne Docker)
 
 ```bash
 git pull
