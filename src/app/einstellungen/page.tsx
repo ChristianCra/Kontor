@@ -37,6 +37,27 @@ export default async function Settings() {
           <label className="flex items-center gap-2 self-end text-sm"><input type="checkbox" name="smallBusiness" defaultChecked={company?.smallBusiness} /> Kleinunternehmer (§19 UStG)</label>
         </fieldset>
         <fieldset className="grid gap-4 sm:grid-cols-2">
+          <legend className="mb-2 text-sm font-medium">Steuern und Buchhaltung</legend>
+          <div>
+            <label className="label">Versteuerung</label>
+            <select className="input" name="cashAccounting" defaultValue={company?.cashAccounting === false ? "soll" : "ist"}>
+              <option value="ist">Ist-Versteuerung (nach Zahlungseingang)</option><option value="soll">Soll-Versteuerung (nach Rechnungsdatum)</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Voranmeldungszeitraum</label>
+            <select className="input" name="vatPeriod" defaultValue={company?.vatPeriod ?? "QUARTER"}>
+              <option value="MONTH">monatlich</option><option value="QUARTER">vierteljährlich</option><option value="YEAR">jährlich</option>
+            </select>
+          </div>
+          <div><label className="label">DATEV-Beraternummer</label><input className="input" name="datevAdvisor" inputMode="numeric" defaultValue={company?.datevAdvisor} /></div>
+          <div><label className="label">DATEV-Mandantennummer</label><input className="input" name="datevClient" inputMode="numeric" defaultValue={company?.datevClient} /></div>
+          <div>
+            <label className="label">Beginn des Wirtschaftsjahres (Monat)</label>
+            <input className="input" type="number" min={1} max={12} name="fiscalYearStart" defaultValue={company?.fiscalYearStart ?? 1} />
+          </div>
+        </fieldset>
+        <fieldset className="grid gap-4 sm:grid-cols-2">
           <legend className="mb-2 text-sm font-medium">Nummernkreise</legend>
           <div>
             <label className="label">Rechnungen</label>

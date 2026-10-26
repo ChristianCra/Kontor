@@ -2,7 +2,7 @@
 
 Rechnungen, Belege und Buchhaltung für Selbstständige und kleine Unternehmen in Deutschland. Funktional orientiert an SevDesk: Das Verhalten wurde aus der öffentlichen SevDesk-API und mit [REA](https://github.com/morluto/rea) abgeleitet, Code, Name und Design sind eigenständig.
 
-## Stand (Etappe 1 bis 3)
+## Stand (Etappe 1 bis 4)
 
 - Kontakte (Organisation/Person, Rechnungsadresse, Steuer- und Bankdaten, Besteuerungsart, Kundennummernkreis)
 - Artikel mit Einheiten, Preisen und Steuersätzen
@@ -16,7 +16,13 @@ Rechnungen, Belege und Buchhaltung für Selbstständige und kleine Unternehmen i
 - Übersicht mit offenen und überfälligen Forderungen sowie Zahlungseingängen
 - Kleinunternehmer, EU- und Drittlandsrechnungen mit passenden Pflichthinweisen
 
-Geplant: EÜR, UStVA, DATEV-Export, E-Mail-Versand.
+- Buchhaltung: einheitliches Journal aus Rechnungen, Gutschriften, Belegen und Bankbuchungen, wahlweise Ist- oder Soll-Versteuerung
+- UStVA-Vorbereitung: Kennzahlen 81, 86, 41, 45, 89, 93, 46/47, 66, 61, 67 und 83 je Monat oder Quartal, Bemessungsgrundlagen auf volle Euro abgerundet, Werte zum Abtippen ins ELSTER-Formular
+- EÜR: Einnahmen und Ausgaben nach Zuflussprinzip, gruppiert nach Kontenbereich, Bewirtung 70/30 aufgeteilt
+- DATEV-Export: Buchungsstapel EXTF 700 als CSV (Latin-1) mit Debitoren und Kreditoren, BU-Schlüsseln, Prüfung des Zeitraums und optionalem Festschreiben der exportierten Belege
+- Einstellungen für Kontenrahmen (SKR03/SKR04), Versteuerungsart, Voranmeldungszeitraum, Berater- und Mandantennummer
+
+Geplant: Anlagenverzeichnis und AfA, ELSTER-Übermittlung, E-Mail-Versand, Login.
 
 ## Entwicklung
 

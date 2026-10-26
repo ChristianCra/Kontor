@@ -25,6 +25,11 @@ model Company {
   smallBusiness   Boolean @default(false) // Kleinunternehmer nach §19 UStG
   defaultTimeToPay Int    @default(14)
   chartOfAccounts String  @default("skr03") // skr03 oder skr04
+  cashAccounting  Boolean @default(true)    // Ist-Versteuerung (true) oder Soll-Versteuerung
+  vatPeriod       String  @default("QUARTER") // MONTH, QUARTER, YEAR
+  datevAdvisor    String  @default("")      // DATEV-Beraternummer
+  datevClient     String  @default("")      // DATEV-Mandantennummer
+  fiscalYearStart Int     @default(1)       // Monat, in dem das Wirtschaftsjahr beginnt
 }
 
 // Nummernkreise je Belegart, z. B. RE-{YYYY}-{NNNN}
@@ -311,4 +316,14 @@ model PrivateRule {
   payeeName  String   @default("") // Teilstring, Groß-/Kleinschreibung egal
   purpose    String   @default("")
   createdAt  DateTime @default(now())
+}
+
+// Protokoll der DATEV-Exporte
+model DatevExport {
+  id        Int      @id @default(autoincrement())
+  from      DateTime
+  to        DateTime
+  lines     Int
+  enshrined Boolean  @default(false)
+  createdAt DateTime @default(now())
 }
