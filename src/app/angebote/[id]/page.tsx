@@ -8,11 +8,13 @@ import { ORDER_STATUS, ORDER_TYPE } from "@/lib/orders";
 import { TAX_TYPES } from "@/lib/invoices";
 import { DocumentEditor } from "@/components/DocumentEditor";
 import { OrderActions } from "@/components/OrderActions";
+import { MailHistory, SentNotice } from "@/components/MailHistory";
 import { deleteOrderDraft, saveAndFinalizeOrder, saveOrderDraft } from "@/app/actions/orders";
 
 export const dynamic = "force-dynamic";
 
-export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function OrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ versendet?: string }> }) {
+  const { versendet } = await searchParams;
   const id = Number((await params).id);
   const o = await db.order.findUnique({
     where: { id },
@@ -60,6 +62,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   return (
     <div className="space-y-4">
       {title}
+      <SentNotice value={versendet} />
       <OrderActions id={id} type={o.type} status={o.status} sent={!!o.sentAt} hasFollowUps={o.children.length + o.invoices.length > 0} />
       {related.length > 0 && (
         <div className="text-sm">
@@ -97,6 +100,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           </tbody>
         </table>
       </div>
+      <MailHistory docType="order" docId={id} />
     </div>
   );
 }

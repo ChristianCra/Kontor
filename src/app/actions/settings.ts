@@ -19,13 +19,19 @@ const CompanyForm = z.object({
   bankName: z.string().trim(),
   defaultTimeToPay: z.coerce.number().int().min(0),
   smallBusiness: z.string().optional(),
+  chartOfAccounts: z.enum(["skr03", "skr04"]),
+  cashAccounting: z.enum(["ist", "soll"]),
+  vatPeriod: z.enum(["MONTH", "QUARTER", "YEAR"]),
+  datevAdvisor: z.string().trim().regex(/^\d{0,7}$/, "Beraternummer: bis zu 7 Ziffern"),
+  datevClient: z.string().trim().regex(/^\d{0,5}$/, "Mandantennummer: bis zu 5 Ziffern"),
+  fiscalYearStart: z.coerce.number().int().min(1).max(12),
   invoiceFormat: z.string().trim().min(1),
   customerFormat: z.string().trim().min(1),
 });
 
 export async function saveSettings(formData: FormData) {
-  const { invoiceFormat, customerFormat, smallBusiness, ...company } = CompanyForm.parse(Object.fromEntries(formData.entries()));
-  const data = { ...company, smallBusiness: smallBusiness === "on" };
+  const { invoiceFormat, customerFormat, smallBusiness, cashAccounting, ...company } = CompanyForm.parse(Object.fromEntries(formData.entries()));
+  const data = { ...company, smallBusiness: smallBusiness === "on", cashAccounting: cashAccounting === "ist" };
   await db.$transaction([
     db.company.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data }),
     db.numberSequence.upsert({ where: { type: "INVOICE" }, create: { type: "INVOICE", format: invoiceFormat }, update: { format: invoiceFormat } }),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeTotals, paymentStatus } from "./calc";
+import { computeTotals, paymentStatus, voucherPositionSums } from "./calc";
 import { parseCents } from "./money";
 import { eInvoiceMissingFields } from "./invoices";
 
@@ -64,5 +64,18 @@ describe("eInvoiceMissingFields", () => {
     const base = { name: "A", street: "S", zip: "1", city: "C", email: "e@x", phone: "1", vatId: "", taxNumber: "1", iban: "DE" };
     expect(eInvoiceMissingFields(base)).toEqual([]);
     expect(eInvoiceMissingFields({ ...base, phone: "", iban: "" })).toEqual(["Telefon", "IBAN"]);
+  });
+});
+
+describe("voucherPositionSums", () => {
+  it("rechnet brutto erfasste Beträge zurück", () => {
+    expect(voucherPositionSums({ amount: 11900, net: false, taxRate: 19 })).toEqual({ net: 10000, tax: 1900, gross: 11900 });
+    expect(voucherPositionSums({ amount: 1000, net: false, taxRate: 7 })).toEqual({ net: 935, tax: 65, gross: 1000 });
+  });
+  it("rechnet netto erfasste Beträge hoch", () => {
+    expect(voucherPositionSums({ amount: 10000, net: true, taxRate: 19 })).toEqual({ net: 10000, tax: 1900, gross: 11900 });
+  });
+  it("ohne Steuer bei Reverse Charge", () => {
+    expect(voucherPositionSums({ amount: 10000, net: true, taxRate: 19 }, "eu")).toEqual({ net: 10000, tax: 0, gross: 10000 });
   });
 });

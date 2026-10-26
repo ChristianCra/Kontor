@@ -17,7 +17,13 @@ export default async function Settings() {
   const next = seqs.find((s) => s.type === "INVOICE")?.next ?? 1;
   return (
     <div className="space-y-4">
-      <h1 className="h1">Einstellungen</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="h1">Einstellungen</h1>
+        <div className="flex gap-2">
+          <a className="btn" href="/einstellungen/benutzer">Benutzer</a>
+          <a className="btn" href="/einstellungen/vorlagen">E-Mail-Vorlagen</a>
+        </div>
+      </div>
       <form action={saveSettings} className="card max-w-3xl space-y-5">
         <fieldset className="grid gap-4 sm:grid-cols-2">
           <legend className="mb-2 text-sm font-medium">Firmendaten (erscheinen auf allen Belegen)</legend>
@@ -28,7 +34,34 @@ export default async function Settings() {
             </div>
           ))}
           <div><label className="label">Standard-Zahlungsziel (Tage)</label><input className="input" type="number" name="defaultTimeToPay" defaultValue={company?.defaultTimeToPay ?? 14} /></div>
+          <div>
+            <label className="label">Kontenrahmen</label>
+            <select className="input" name="chartOfAccounts" defaultValue={company?.chartOfAccounts ?? "skr03"}>
+              <option value="skr03">SKR03</option><option value="skr04">SKR04</option>
+            </select>
+          </div>
           <label className="flex items-center gap-2 self-end text-sm"><input type="checkbox" name="smallBusiness" defaultChecked={company?.smallBusiness} /> Kleinunternehmer (§19 UStG)</label>
+        </fieldset>
+        <fieldset className="grid gap-4 sm:grid-cols-2">
+          <legend className="mb-2 text-sm font-medium">Steuern und Buchhaltung</legend>
+          <div>
+            <label className="label">Versteuerung</label>
+            <select className="input" name="cashAccounting" defaultValue={company?.cashAccounting === false ? "soll" : "ist"}>
+              <option value="ist">Ist-Versteuerung (nach Zahlungseingang)</option><option value="soll">Soll-Versteuerung (nach Rechnungsdatum)</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Voranmeldungszeitraum</label>
+            <select className="input" name="vatPeriod" defaultValue={company?.vatPeriod ?? "QUARTER"}>
+              <option value="MONTH">monatlich</option><option value="QUARTER">vierteljährlich</option><option value="YEAR">jährlich</option>
+            </select>
+          </div>
+          <div><label className="label">DATEV-Beraternummer</label><input className="input" name="datevAdvisor" inputMode="numeric" defaultValue={company?.datevAdvisor} /></div>
+          <div><label className="label">DATEV-Mandantennummer</label><input className="input" name="datevClient" inputMode="numeric" defaultValue={company?.datevClient} /></div>
+          <div>
+            <label className="label">Beginn des Wirtschaftsjahres (Monat)</label>
+            <input className="input" type="number" min={1} max={12} name="fiscalYearStart" defaultValue={company?.fiscalYearStart ?? 1} />
+          </div>
         </fieldset>
         <fieldset className="grid gap-4 sm:grid-cols-2">
           <legend className="mb-2 text-sm font-medium">Nummernkreise</legend>

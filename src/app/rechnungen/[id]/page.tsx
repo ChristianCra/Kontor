@@ -6,13 +6,15 @@ import { INVOICE_TYPE, TAX_TYPES, dueDate, isOverdue } from "@/lib/invoices";
 import { contactName } from "@/lib/contacts";
 import { computeTotals } from "@/lib/calc";
 import { StatusBadge } from "@/components/StatusBadge";
+import { MailHistory, SentNotice } from "@/components/MailHistory";
 import { DocumentEditor } from "@/components/DocumentEditor";
 import { InvoiceActions } from "@/components/InvoiceActions";
 import { deleteDraft, saveAndFinalize, saveDraft } from "@/app/actions/invoices";
 
 export const dynamic = "force-dynamic";
 
-export default async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function InvoicePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ versendet?: string }> }) {
+  const { versendet } = await searchParams;
   const id = Number((await params).id);
   const inv = await db.invoice.findUnique({
     where: { id },
@@ -67,6 +69,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   return (
     <div className="space-y-4">
       {title}
+      <SentNotice value={versendet} />
       {inv.cancels && <div className="text-sm">Storniert Rechnung <Link className="text-accent hover:underline" href={`/rechnungen/${inv.cancels.id}`}>{inv.cancels.invoiceNumber}</Link></div>}
       {inv.cancelledBy && <div className="text-sm">Storniert durch <Link className="text-accent hover:underline" href={`/rechnungen/${inv.cancelledBy.id}`}>{inv.cancelledBy.invoiceNumber}</Link></div>}
       {inv.parent && <div className="text-sm">Bezieht sich auf <Link className="text-accent hover:underline" href={`/rechnungen/${inv.parent.id}`}>{inv.parent.invoiceNumber}</Link></div>}
@@ -134,6 +137,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
           </table>
         </div>
       )}
+      <MailHistory docType="invoice" docId={id} />
     </div>
   );
 }

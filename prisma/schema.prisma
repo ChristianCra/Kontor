@@ -24,6 +24,12 @@ model Company {
   bankName        String  @default("")
   smallBusiness   Boolean @default(false) // Kleinunternehmer nach §19 UStG
   defaultTimeToPay Int    @default(14)
+  chartOfAccounts String  @default("skr03") // skr03 oder skr04
+  cashAccounting  Boolean @default(true)    // Ist-Versteuerung (true) oder Soll-Versteuerung
+  vatPeriod       String  @default("QUARTER") // MONTH, QUARTER, YEAR
+  datevAdvisor    String  @default("")      // DATEV-Beraternummer
+  datevClient     String  @default("")      // DATEV-Mandantennummer
+  fiscalYearStart Int     @default(1)       // Monat, in dem das Wirtschaftsjahr beginnt
 }
 
 // Nummernkreise je Belegart, z. B. RE-{YYYY}-{NNNN}
@@ -57,6 +63,7 @@ model Contact {
   addresses        ContactAddress[]
   invoices         Invoice[]
   orders           Order[]
+  vouchers         Voucher[]
 }
 
 model ContactAddress {
@@ -149,14 +156,113 @@ model InvoicePosition {
   taxRate    Float
 }
 
+// Zahlung zu einer Rechnung oder einem Beleg, optional aus einem Bankumsatz
 model Payment {
-  id        Int      @id @default(autoincrement())
-  invoiceId Int
-  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  date      DateTime
-  amount    Int      // Cent
-  note      String   @default("")
-  createdAt DateTime @default(now())
+  id            Int          @id @default(autoincrement())
+  invoiceId     Int?
+  invoice       Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  voucherId     Int?
+  voucher       Voucher?     @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  transactionId Int?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  accountId     Int?         // Zahlungskonto bei manueller Buchung
+  date          DateTime
+  amount        Int          // Cent, immer positiv
+  note          String       @default("")
+  createdAt     DateTime     @default(now())
+}
+
+// Buchungskategorie mit Konten nach SKR03 und SKR04
+model AccountingType {
+  id             Int     @id @default(autoincrement())
+  name           String
+  kind           String  // EXPENSE, REVENUE, ASSET, PRIVATE
+  skr03          String
+  skr04          String
+  defaultTaxRate Float   @default(19)
+  active         Boolean @default(true)
+  positions      VoucherPosition[]
+  assets         Asset[]
+}
+
+// Beleg: Eingangsrechnung, Quittung oder sonstige Einnahme
+model Voucher {
+  id            Int       @id @default(autoincrement())
+  creditDebit   String    @default("D") // D Ausgabe, C Einnahme
+  status        Int       @default(50)  // 50 Entwurf, 100 Offen, 750 Teilbezahlt, 1000 Bezahlt
+  supplierId    Int?
+  supplier      Contact?  @relation(fields: [supplierId], references: [id])
+  supplierName  String    @default("")
+  documentNumber String   @default("") // Rechnungsnummer des Lieferanten
+  voucherDate   DateTime
+  deliveryDate  DateTime?
+  dueDate       DateTime?
+  // Steuerregel: default (Vorsteuer abziehbar bzw. umsatzsteuerpflichtig), novst (ohne Vorsteuerabzug),
+  // igerwerb (innergemeinschaftlicher Erwerb), rc13b (Reverse Charge §13b), eu/noteu (steuerfreie Einnahmen)
+  taxType       String    @default("default")
+  net           Boolean   @default(false) // alle Positionen netto (true) oder brutto erfasst
+  supplierIban  String    @default("")
+  description   String    @default("")
+  sumNet        Int       @default(0)
+  sumTax        Int       @default(0)
+  sumGross      Int       @default(0)
+  paidAmount    Int       @default(0)
+  fileName      String?
+  filePath      String?
+  fileType      String?
+  fileHash      String?   // SHA-256 für die Dublettenprüfung
+  enshrinedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  positions     VoucherPosition[]
+  payments      Payment[]
+  assets        Asset[]
+}
+
+model VoucherPosition {
+  id               Int            @id @default(autoincrement())
+  voucherId        Int
+  voucher          Voucher        @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  accountingTypeId Int
+  accountingType   AccountingType @relation(fields: [accountingTypeId], references: [id])
+  taxRate          Float
+  net              Boolean        @default(false) // true: Betrag ist netto, sonst brutto
+  amount           Int            // Cent
+  sumNet           Int            @default(0)
+  sumTax           Int            @default(0)
+  sumGross         Int            @default(0)
+  comment          String         @default("")
+  isAsset          Boolean        @default(false)
+}
+
+// Zahlungskonto: Bankkonto, Kasse oder Importkonto
+model BankAccount {
+  id             Int           @id @default(autoincrement())
+  name           String
+  type           String        @default("BANK") // BANK, CASH
+  iban           String        @default("")
+  bic            String        @default("")
+  openingBalance Int           @default(0)
+  openingDate    DateTime      @default(now())
+  ledgerAccount  String        @default("1200") // SKR03 Bank 1200, Kasse 1000
+  createdAt      DateTime      @default(now())
+  transactions   Transaction[]
+}
+
+model Transaction {
+  id          Int         @id @default(autoincrement())
+  accountId   Int
+  account     BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  valueDate   DateTime
+  entryDate   DateTime    @default(now())
+  amount      Int         // Cent, Eingang positiv, Ausgang negativ
+  payeeName   String      @default("")
+  payeeIban   String      @default("")
+  purpose     String      @default("")
+  status      Int         @default(100) // 100 Offen, 200 Zugeordnet, 300 Privat, 400 Ohne Beleg gebucht
+  importHash  String?     @unique
+  createdAt   DateTime    @default(now())
+  payments    Payment[]
 }
 
 // Angebot (AN), Auftragsbestätigung (AB) oder Lieferschein (LI)
@@ -204,4 +310,75 @@ model OrderPosition {
   discount  Float   @default(0)
   taxRate   Float
   optional  Boolean @default(false) // Optionale Position, zählt nicht zur Summe
+}
+
+// Regel, nach der importierte Umsätze automatisch als privat markiert werden
+model PrivateRule {
+  id         Int      @id @default(autoincrement())
+  payeeName  String   @default("") // Teilstring, Groß-/Kleinschreibung egal
+  purpose    String   @default("")
+  createdAt  DateTime @default(now())
+}
+
+// Protokoll der DATEV-Exporte
+model DatevExport {
+  id        Int      @id @default(autoincrement())
+  from      DateTime
+  to        DateTime
+  lines     Int
+  enshrined Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// Anlagegut für das Anlagenverzeichnis und die Abschreibung (AfA)
+model Asset {
+  id                Int            @id @default(autoincrement())
+  name              String
+  inventoryNumber   String         @default("")
+  accountingTypeId  Int
+  accountingType    AccountingType @relation(fields: [accountingTypeId], references: [id])
+  method            String         @default("linear") // linear, digital (1 Jahr), gwg (sofort), pool (Sammelposten, 5 Jahre)
+  acquisitionDate   DateTime
+  cost              Int            // Anschaffungskosten in Cent (netto, ohne Vorsteuerabzug brutto)
+  usefulLifeYears   Int            @default(1)
+  voucherId         Int?
+  voucher           Voucher?       @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  voucherPositionId Int?           @unique
+  disposalDate      DateTime?
+  disposalProceeds  Int            @default(0) // Verkaufserlös netto in Cent
+  note              String         @default("")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+// Benutzer mit Zugang zur Anwendung
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  name         String   @default("")
+  passwordHash String
+  // Wird beim Passwortwechsel erhöht und macht bestehende Sitzungen ungültig
+  sessionVersion Int    @default(1)
+  createdAt    DateTime @default(now())
+}
+
+// Vorlage für den E-Mail-Versand je Belegart
+model MailTemplate {
+  docType String @id // INVOICE, ORDER, CREDIT_NOTE, DUNNING
+  subject String
+  body    String
+}
+
+// Protokoll versendeter E-Mails
+model MailLog {
+  id        Int      @id @default(autoincrement())
+  docType   String   // invoice, order
+  docId     Int
+  to        String
+  cc        String   @default("")
+  subject   String
+  messageId String   @default("")
+  testMode  Boolean  @default(false)
+  sentBy    String   @default("")
+  createdAt DateTime @default(now())
 }
