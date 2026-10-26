@@ -50,3 +50,15 @@ export function paymentStatus(gross: number, paid: number): number {
   if (paid < gross) return 750;
   return 1000;
 }
+
+// Belegposition: Betrag ist entweder netto oder brutto erfasst.
+// Bei Reverse Charge und Kleinunternehmer-Lieferanten fließt keine Umsatzsteuer.
+export function voucherPositionSums(p: { amount: number; net: boolean; taxRate: number }, taxType = "default") {
+  const rate = taxType === "default" ? p.taxRate : 0;
+  if (p.net) {
+    const tax = Math.round((p.amount * rate) / 100);
+    return { net: p.amount, tax, gross: p.amount + tax };
+  }
+  const net = Math.round(p.amount / (1 + rate / 100));
+  return { net, tax: p.amount - net, gross: p.amount };
+}
