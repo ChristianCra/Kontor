@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { userActor } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 import { parseCents } from "@/lib/money";
 import { optDate, type ActionResult } from "@/lib/draft";
 import { finalizeVoucher, recalcVoucher, storeVoucherFile, voucherStatusFor, voucherToDraft } from "@/lib/vouchers";
@@ -32,9 +34,10 @@ const VoucherSchema = z.object({
 
 export type VoucherInput = z.infer<typeof VoucherSchema>;
 
-async function run(id: number, fn: () => Promise<unknown>): Promise<ActionResult> {
+async function run(id: number, fn: () => Promise<unknown>, action?: string): Promise<ActionResult> {
   try {
     await fn();
+    if (action) await audit(await userActor(), action, "voucher", id || null);
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
@@ -83,6 +86,7 @@ export async function saveVoucher(id: number | null, formData: FormData): Promis
   let savedId: number | undefined;
   const r = await run(id ?? 0, async () => {
     savedId = await persist(id, formData);
+    await audit(await userActor(), "voucher.save", "voucher", savedId);
   });
   return { ...r, id: savedId };
 }
@@ -92,12 +96,13 @@ export async function saveAndBookVoucher(id: number | null, formData: FormData):
   const r = await run(id ?? 0, async () => {
     savedId = await persist(id, formData);
     await finalizeVoucher(savedId);
+    await audit(await userActor(), "voucher.book", "voucher", savedId);
   });
   return { ...r, id: savedId };
 }
 
 export async function voucherBackToDraft(id: number): Promise<ActionResult> {
-  return run(id, () => voucherToDraft(id));
+  return run(id, () => voucherToDraft(id), "voucher.draft");
 }
 
 export async function enshrineVoucher(id: number): Promise<ActionResult> {
@@ -105,7 +110,7 @@ export async function enshrineVoucher(id: number): Promise<ActionResult> {
     const v = await db.voucher.findUniqueOrThrow({ where: { id } });
     if (v.status === 50) throw new Error("Entwürfe können nicht festgeschrieben werden.");
     await db.voucher.update({ where: { id }, data: { enshrinedAt: new Date() } });
-  });
+  }, "voucher.enshrine");
 }
 
 export async function payVoucher(id: number, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
@@ -120,13 +125,14 @@ export async function payVoucher(id: number, _prev: ActionResult, formData: Form
       await tx.payment.create({ data: { voucherId: id, amount, accountId, date: new Date(String(formData.get("date"))), note: String(formData.get("note") ?? "") } });
       await tx.voucher.update({ where: { id }, data: { paidAmount, status: voucherStatusFor(v.sumGross, paidAmount) } });
     });
-  });
+  }, "voucher.payment");
 }
 
 export async function deleteVoucher(id: number) {
   const v = await db.voucher.findUniqueOrThrow({ where: { id }, include: { payments: true } });
   if (v.status !== 50 || v.payments.length) throw new Error("Nur Entwürfe ohne Zahlungen können gelöscht werden.");
   await db.voucher.delete({ where: { id } });
+  await audit(await userActor(), "voucher.delete", "voucher", id, { supplierName: v.supplierName, documentNumber: v.documentNumber });
   revalidatePath("/belege");
   redirect("/belege");
 }

@@ -27,6 +27,8 @@ Rechnungen, Belege und Buchhaltung für Selbstständige und kleine Unternehmen i
 - Anlagenverzeichnis: Anlagegüter aus Belegen mit Anlagekonto werden automatisch übernommen oder manuell erfasst; lineare AfA monatsgenau, digitale Wirtschaftsgüter (1 Jahr), GWG bis 800 € sofort, Sammelposten über 5 Jahre, Abgang mit Restbuchwert
 - EÜR nach Zeilen und Kennzahlen der Anlage EÜR (Vordruck 2025), inklusive AfA; AfA-Buchungen auch im DATEV-Export
 
+- Claude und Automatisierung: MCP-Server unter `/api/mcp` (als Connector in Claude eintragbar, Anmeldung per OAuth mit PKCE), REST-API unter `/api/v1` mit API-Schlüsseln und Rechten (Lesen, Entwürfe, Buchen), Freigabe-Liste für vorgeschlagene Buchungen und Zuordnungen, Änderungsprotokoll mit Hash-Kette für alle Änderungen durch Benutzer und API
+
 Nicht enthalten: direkte ELSTER-Übermittlung (dafür ist die ERiC-Bibliothek mit eigener Hersteller-ID nötig). Die UStVA- und EÜR-Werte lassen sich je Kennzahl kopieren und in „Mein ELSTER“ eintragen.
 
 ## Installation
@@ -144,6 +146,43 @@ npx prisma migrate deploy
 npm run build
 # danach den Dienst neu starten, z. B. sudo systemctl restart kontor
 ```
+
+## Claude und API
+
+Unter Einstellungen → API und Claude stehen die Adressen und die API-Schlüssel.
+
+**Als Connector in Claude:** In Claude unter Einstellungen → Connectors einen eigenen Connector mit der Adresse `https://deine-domain/api/mcp` anlegen. Claude leitet zur Anmeldung an Kontor weiter; dort wählt man die Rechte und bestätigt. Der Zugang erscheint danach in der Schlüsselliste und lässt sich dort widerrufen. Kontor muss dafür über https öffentlich erreichbar sein. Hinter einem Proxy, der die Adresse nicht korrekt weiterreicht, setzt man `PUBLIC_URL=https://deine-domain`.
+
+**Mit Claude Code oder eigenen Skripten:** Einen Schlüssel anlegen und als Header `Authorization: Bearer kontor_…` mitschicken, zum Beispiel `claude mcp add --transport http kontor https://deine-domain/api/mcp --header "Authorization: Bearer kontor_…"`.
+
+**Rechte:**
+
+| Recht | Erlaubt |
+|---|---|
+| Lesen | Belege, Umsätze, offene Posten, Kontakte, UStVA, EÜR, Überblick „was braucht Aufmerksamkeit“ |
+| Entwürfe | Belegentwürfe mit Datei anlegen; Buchen, Zuordnen und Privat-Markieren werden zur Freigabe vorgelegt |
+| Buchen | Belege buchen und Umsätze zuordnen ohne Freigabe |
+
+Festschreiben, E-Mail-Versand und Löschen gehen nur in der Oberfläche. Vorgeschlagene Schritte erscheinen unter **Freigaben** mit Begründung des Agenten; erst nach „Freigeben“ führt Kontor sie aus. Unter **Protokoll** steht jede Änderung mit Akteur (Benutzer oder Schlüssel); jede Zeile enthält den Hash der vorigen, nachträgliche Änderungen an der Datenbank fallen dadurch auf.
+
+**REST-Endpunkte** (Beträge in Euro, Datum `JJJJ-MM-TT`):
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| GET | `/api/v1/attention` | Offene Umsätze, Entwürfe, überfällige Rechnungen, offene Freigaben, nächste UStVA-Frist |
+| GET | `/api/v1/accounting-types` | Buchungskonten mit ID |
+| GET | `/api/v1/contacts?search=` | Kontakte suchen |
+| GET | `/api/v1/open-items` | Offene Rechnungen und Belege |
+| GET/POST | `/api/v1/vouchers` | Belege auflisten bzw. Entwurf anlegen (JSON oder multipart mit `data` und `file`) |
+| GET | `/api/v1/vouchers/:id` | Ein Beleg |
+| POST | `/api/v1/vouchers/:id/file` | Datei anhängen (multipart, Feld `file`) |
+| POST | `/api/v1/vouchers/:id/book` | Buchen bzw. zur Freigabe vorlegen |
+| GET | `/api/v1/transactions?status=100` | Bankumsätze mit Zuordnungsvorschlägen |
+| POST | `/api/v1/transactions/:id/link` | Zuordnen (`kind`: invoice, credit, voucher, income; `id`) |
+| POST | `/api/v1/transactions/:id/private` | Als privat markieren |
+| GET | `/api/v1/approvals?status=pending` | Freigaben |
+| GET | `/api/v1/reports/ustva?year=&period=QUARTER&index=` | UStVA-Werte |
+| GET | `/api/v1/reports/euer?year=` | EÜR |
 
 ## Entwicklung
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
 import { logout } from "@/app/actions/auth";
+import { db } from "@/lib/db";
 
 export const metadata: Metadata = {
   title: "Kontor",
@@ -21,6 +22,8 @@ const NAV = [
   { href: "/steuern/ustva", label: "UStVA" },
   { href: "/steuern/euer", label: "EÜR" },
   { href: "/steuern/datev", label: "DATEV-Export" },
+  { href: "/freigaben", label: "Freigaben" },
+  { href: "/protokoll", label: "Protokoll" },
   { href: "/einstellungen", label: "Einstellungen" },
 ];
 
@@ -34,6 +37,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       </html>
     );
   }
+  const pendingApprovals = await db.approval.count({ where: { status: "pending" } });
   return (
     <html lang="de">
       <body className="antialiased">
@@ -44,6 +48,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               {NAV.map((n) => (
                 <Link key={n.href} href={n.href} className="whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm hover:bg-background">
                   {n.label}
+                  {n.href === "/freigaben" && pendingApprovals > 0 && <span className="ml-1.5 rounded-full bg-accent px-1.5 text-xs text-accent-fg">{pendingApprovals}</span>}
                 </Link>
               ))}
             </nav>

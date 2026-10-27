@@ -3,7 +3,13 @@ import { SESSION_COOKIE, verifySession } from "@/lib/session-token";
 
 // Alle Seiten, Server-Actions und Downloads erfordern eine gültige Sitzung.
 // Frei zugänglich sind nur die Anmeldeseite und die Formular-Endpunkte unter /auth.
+// API, MCP-Server und OAuth-Endpunkte prüfen ihre Bearer-Tokens bzw. Codes selbst.
+const TOKEN_PATHS = ["/api/v1/", "/.well-known/oauth-"];
+const TOKEN_ROUTES = ["/api/mcp", "/oauth/register", "/oauth/token"];
+
 export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
+  if (!req.headers.has("next-action") && (TOKEN_ROUTES.includes(path) || TOKEN_PATHS.some((p) => path.startsWith(p)))) return NextResponse.next();
   const session = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   if (session) return NextResponse.next();
   // Server-Actions lassen sich an jede Seite senden, deshalb unabhängig vom Pfad sperren

@@ -8,6 +8,7 @@ services:
       AUTH_SECRET: ${AUTH_SECRET:-}
       SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      PUBLIC_URL: ${PUBLIC_URL:-}
     volumes:
       - kontor-data:/data
     networks:

@@ -11,6 +11,7 @@ services:
       # E-Mail-Versand, z. B. smtps://benutzer:passwort@smtp.example.com:465 (leer = Testmodus)
       SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      PUBLIC_URL: ${PUBLIC_URL:-}
     volumes:
       # Datenbank, Belege und E-Mails im Testmodus
       - kontor-data:/data
