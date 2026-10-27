@@ -3,6 +3,8 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { userActor } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 import { parseCents } from "@/lib/money";
 import { DraftSchema, optDate, type ActionResult, type DraftInput } from "@/lib/draft";
 import {
@@ -18,9 +20,10 @@ import {
 } from "@/lib/invoices";
 import { formatAddress } from "@/lib/contacts";
 
-async function run(id: number, fn: () => Promise<unknown>): Promise<ActionResult> {
+async function run(id: number, fn: () => Promise<unknown>, action?: string): Promise<ActionResult> {
   try {
     await fn();
+    if (action) await audit(await userActor(), action, "invoice", id);
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
@@ -96,13 +99,14 @@ export async function saveDraft(id: number, input: DraftInput): Promise<ActionRe
 export async function saveAndFinalize(id: number, input: DraftInput): Promise<ActionResult> {
   const saved = await saveDraft(id, input);
   if (saved.error) return saved;
-  return run(id, () => finalizeInvoice(id));
+  return run(id, () => finalizeInvoice(id), "invoice.finalize");
 }
 
 export async function deleteDraft(id: number) {
   const inv = await db.invoice.findUniqueOrThrow({ where: { id } });
   if (inv.status !== 100 || inv.invoiceNumber) throw new Error("Nur Entwürfe ohne Nummer können gelöscht werden.");
   await db.invoice.delete({ where: { id } });
+  await audit(await userActor(), "invoice.delete", "invoice", id);
   revalidatePath("/rechnungen");
   redirect("/rechnungen");
 }
@@ -112,17 +116,19 @@ export async function markSent(id: number): Promise<ActionResult> {
 }
 
 export async function addPayment(id: number, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  return run(id, () =>
-    bookPayment(id, parseCents(String(formData.get("amount"))), new Date(String(formData.get("date"))), String(formData.get("note") ?? "")),
+  return run(
+    id,
+    () => bookPayment(id, parseCents(String(formData.get("amount"))), new Date(String(formData.get("date"))), String(formData.get("note") ?? "")),
+    "invoice.payment",
   );
 }
 
 export async function enshrine(id: number): Promise<ActionResult> {
-  return run(id, () => enshrineInvoice(id));
+  return run(id, () => enshrineInvoice(id), "invoice.enshrine");
 }
 
 export async function backToDraft(id: number): Promise<ActionResult> {
-  return run(id, () => resetToDraft(id));
+  return run(id, () => resetToDraft(id), "invoice.draft");
 }
 
 // Legt einen Folgebeleg an und wechselt dorthin
@@ -130,6 +136,7 @@ async function createAndOpen(id: number, fn: () => Promise<{ id: number }>): Pro
   let target: number | undefined;
   const result = await run(id, async () => {
     target = (await fn()).id;
+    await audit(await userActor(), "invoice.followUp", "invoice", target, { from: id });
   });
   if (result.error) return result;
   redirect(`/rechnungen/${target}`);

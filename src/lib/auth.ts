@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "./db";
 import { SESSION_COOKIE, SESSION_DAYS, signSession, verifySession } from "./session-token";
+import type { Actor } from "./audit";
 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>;
 
@@ -74,4 +75,10 @@ export function recordLoginFailure(email: string) {
 
 export function clearLoginFailures(email: string) {
   failures.delete(email);
+}
+
+// Angemeldeter Benutzer als Akteur fürs Änderungsprotokoll
+export async function userActor(): Promise<Actor> {
+  const user = await requireUser();
+  return { type: "user", name: user.email, userId: user.id };
 }

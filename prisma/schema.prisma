@@ -382,3 +382,68 @@ model MailLog {
   sentBy    String   @default("")
   createdAt DateTime @default(now())
 }
+
+// Zugriffsschlüssel für die API und den MCP-Server; gespeichert wird nur der SHA-256 des Schlüssels
+model ApiToken {
+  id          Int       @id @default(autoincrement())
+  name        String
+  prefix      String    // erste Zeichen zur Wiedererkennung in der Liste
+  tokenHash   String    @unique
+  // Kommagetrennt: read (lesen), draft (Entwürfe anlegen), book (buchen und zuordnen ohne Freigabe)
+  scopes      String    @default("read")
+  userId      Int?      // Benutzer, der den Schlüssel angelegt oder per OAuth freigegeben hat
+  clientId    String?   // OAuth-Client, falls über die Anmeldung eines Connectors entstanden
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+// Dynamisch registrierte OAuth-Clients (z. B. Claude als Connector)
+model OAuthClient {
+  id           String   @id
+  name         String   @default("")
+  redirectUris String   // JSON-Array
+  createdAt    DateTime @default(now())
+}
+
+model OAuthCode {
+  id            Int      @id @default(autoincrement())
+  codeHash      String   @unique
+  clientId      String
+  redirectUri   String
+  codeChallenge String
+  scopes        String
+  userId        Int
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime @default(now())
+}
+
+// Änderungsprotokoll (GoBD): jede Zeile enthält den Hash der vorigen, Lücken oder Änderungen fallen so auf
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  actorType  String   // user, token, system
+  actorName  String
+  action     String   // z. B. voucher.create, transaction.link, approval.approve
+  entity     String   @default("")
+  entityId   Int?
+  detail     String   @default("") // JSON
+  prevHash   String
+  hash       String
+  createdAt  DateTime @default(now())
+}
+
+// Vom Agenten vorgeschlagene Schritte, die ein Mensch freigeben muss
+model Approval {
+  id          Int       @id @default(autoincrement())
+  action      String    // voucher.book, transaction.link, transaction.private
+  params      String    // JSON
+  summary     String
+  reason      String    @default("") // Begründung des Agenten
+  status      String    @default("pending") // pending, approved, rejected, failed
+  requestedBy String
+  decidedBy   String?
+  decidedAt   DateTime?
+  error       String?
+  createdAt   DateTime  @default(now())
+}

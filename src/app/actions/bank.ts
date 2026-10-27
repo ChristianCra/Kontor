@@ -4,15 +4,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { userActor } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 import { parseCents } from "@/lib/money";
 import type { ActionResult } from "@/lib/draft";
 import { parseBankFile, transactionHash } from "@/lib/bankimport";
 import { linkTransaction, unlinkTransaction, type Target } from "@/lib/payments";
 import { recalcVoucher } from "@/lib/vouchers";
 
-async function run(accountId: number, fn: () => Promise<unknown>): Promise<ActionResult> {
+async function run(accountId: number, fn: () => Promise<unknown>, action?: string, transactionId?: number, detail?: unknown): Promise<ActionResult> {
   try {
     await fn();
+    if (action) await audit(await userActor(), action, "transaction", transactionId ?? null, detail);
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
@@ -77,6 +80,7 @@ export async function importTransactions(accountId: number, _prev: ImportResult,
       await db.transaction.create({ data: { ...t, accountId, importHash, status: isPrivate(t) ? 300 : 100 } });
       imported++;
     }
+    await audit(await userActor(), "bank.import", "bankAccount", accountId, { file: file.name, imported });
     revalidatePath(`/bank/${accountId}`);
     return { imported, skipped: parsed.length - imported };
   } catch (e) {
@@ -101,11 +105,11 @@ export async function addManualTransaction(accountId: number, _prev: ActionResul
 }
 
 export async function link(accountId: number, transactionId: number, target: Target): Promise<ActionResult> {
-  return run(accountId, () => linkTransaction(transactionId, target));
+  return run(accountId, () => linkTransaction(transactionId, target), "transaction.link", transactionId, target);
 }
 
 export async function unlink(accountId: number, transactionId: number): Promise<ActionResult> {
-  return run(accountId, () => unlinkTransaction(transactionId));
+  return run(accountId, () => unlinkTransaction(transactionId), "transaction.unlink", transactionId);
 }
 
 export async function markPrivate(accountId: number, transactionId: number, isPrivate: boolean): Promise<ActionResult> {
@@ -113,7 +117,7 @@ export async function markPrivate(accountId: number, transactionId: number, isPr
     const t = await db.transaction.findUniqueOrThrow({ where: { id: transactionId }, include: { payments: true } });
     if (t.payments.length) throw new Error("Bitte zuerst die Zuordnung aufheben.");
     await db.transaction.update({ where: { id: transactionId }, data: { status: isPrivate ? 300 : 100 } });
-  });
+  }, isPrivate ? "transaction.private" : "transaction.unprivate", transactionId);
 }
 
 // Legt aus einem Umsatz einen gebuchten und bezahlten Beleg an (z. B. Kontoführungsgebühren)
@@ -133,6 +137,7 @@ export async function voucherFromTransaction(accountId: number, transactionId: n
     });
     await recalcVoucher(v.id);
     await linkTransaction(transactionId, { kind: t.amount < 0 ? "voucher" : "income", id: v.id });
+    await audit(await userActor(), "voucher.fromTransaction", "voucher", v.id, { transactionId });
   });
 }
 

@@ -22,6 +22,7 @@ export default async function Settings() {
         <div className="flex gap-2">
           <a className="btn" href="/einstellungen/benutzer">Benutzer</a>
           <a className="btn" href="/einstellungen/vorlagen">E-Mail-Vorlagen</a>
+          <a className="btn" href="/einstellungen/api">API und Claude</a>
         </div>
       </div>
       <form action={saveSettings} className="card max-w-3xl space-y-5">
