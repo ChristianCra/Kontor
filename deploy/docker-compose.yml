@@ -3,7 +3,9 @@ services:
     image: ghcr.io/christiancra/kontor:latest
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      # Nur vom Server selbst erreichbar (z. B. für einen Caddy direkt auf dem Host). Von außen
+      # kommt man ausschließlich über den Reverse Proxy mit HTTPS an Kontor, nie per http://IP:3000
+      - "127.0.0.1:3000:3000"
     environment:
       AUTH_SECRET: ${AUTH_SECRET:-}
       SMTP_URL: ${SMTP_URL:-}
