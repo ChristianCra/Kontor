@@ -91,6 +91,25 @@ Der Volume-Name setzt sich aus dem Ordnernamen und `kontor-data` zusammen, `dock
 
 Bei jedem Stand auf `main` baut GitHub Actions das Image und veröffentlicht es als `ghcr.io/christiancra/kontor:latest`. Für verwaltete Docker-Umgebungen, die nur fertige Images starten, gibt es [`deploy/docker-compose.yml`](deploy/docker-compose.yml): Diese Datei übernehmen, fertig. Aktualisieren heißt dort nur, das Image neu zu ziehen (`docker compose pull && docker compose up -d`).
 
+### Hinter einem vorhandenen Caddy
+
+Belegt auf dem Server schon ein anderer Caddy die Ports 80 und 443, läuft Kontor einfach daneben und dieser Caddy leitet die Kontor-Domain weiter:
+
+1. Kontor mit [`deploy/docker-compose.yml`](deploy/docker-compose.yml) starten. Dabei entsteht das Docker-Netzwerk `web-proxy`, in dem Kontor unter dem Namen `kontor` erreichbar ist.
+2. Den vorhandenen Caddy in dieses Netzwerk hängen. In seiner Compose-Datei:
+
+   ```yaml
+   services:
+     caddy:
+       networks: [default, web-proxy]
+   networks:
+     web-proxy:
+       external: true
+   ```
+
+   Oder einmalig ohne Änderung der Datei: `docker network connect web-proxy <caddy-container>` (gilt nur bis zum Neuanlegen des Containers).
+3. Den Block aus [`deploy/caddy/Caddyfile.kontor`](deploy/caddy/Caddyfile.kontor) an dessen Caddyfile anhängen und Caddy neu laden (`docker exec <caddy-container> caddy reload --config /etc/caddy/Caddyfile`). Die übrigen Seiten dieses Caddy laufen dabei ohne Unterbrechung weiter; das Zertifikat holt Caddy selbst, sobald der DNS-Eintrag auf den Server zeigt.
+
 ### Ohne Docker auf einem Server (z. B. ein kleiner VPS)
 
 1. Schritte wie oben ausführen, `PORT` nach Bedarf setzen (`PORT=3000 npm start`).

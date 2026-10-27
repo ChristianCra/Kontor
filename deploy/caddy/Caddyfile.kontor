@@ -1,0 +1,7 @@
+# Eintrag für einen Caddy, der schon andere Seiten auf dem Server ausliefert.
+# Diesen Block an dessen Caddyfile anhängen und den Caddy-Container zusätzlich ins
+# Netzwerk "web-proxy" hängen (siehe README, Abschnitt "Hinter einem vorhandenen Caddy").
+kontor.vennovations.de {
+	encode zstd gzip
+	reverse_proxy kontor:3000
+}
