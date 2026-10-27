@@ -89,7 +89,7 @@ Der Volume-Name setzt sich aus dem Ordnernamen und `kontor-data` zusammen, `dock
 
 ### Mit fertigem Image (ohne Build auf dem Server)
 
-Bei jedem Stand auf `main` baut GitHub Actions das Image und veröffentlicht es als `ghcr.io/christiancra/kontor:latest`. Für verwaltete Docker-Umgebungen, die nur fertige Images starten, gibt es [`deploy/docker-compose.yml`](deploy/docker-compose.yml): Diese Datei übernehmen, fertig. Aktualisieren heißt dort nur, das Image neu zu ziehen (`docker compose pull && docker compose up -d`).
+Bei jedem Stand auf `main` baut GitHub Actions das Image und veröffentlicht es als `ghcr.io/christiancra/kontor:latest`. Für verwaltete Docker-Umgebungen, die nur fertige Images starten, gibt es [`deploy/docker-compose.yml`](deploy/docker-compose.yml): Diese Datei übernehmen und einen Reverse Proxy mit HTTPS davorsetzen (siehe unten). Port 3000 ist dort bewusst nur auf `127.0.0.1` freigegeben, damit Kontor nicht unverschlüsselt über `http://<Server-IP>:3000` erreichbar ist. Aktualisieren heißt dort nur, das Image neu zu ziehen (`docker compose pull && docker compose up -d`).
 
 ### Hinter einem vorhandenen Caddy
 
