@@ -1,0 +1,20 @@
+# Kontor mit fertigem Image aus der GitHub Container Registry, ohne lokalen Build.
+# Geeignet für verwaltete Docker-Umgebungen auf VPS oder NAS.
+services:
+  kontor:
+    image: ghcr.io/christiancra/kontor:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Optional; ohne Angabe erzeugt der Container beim ersten Start selbst einen Schlüssel
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      # E-Mail-Versand, z. B. smtps://benutzer:passwort@smtp.example.com:465 (leer = Testmodus)
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+    volumes:
+      # Datenbank, Belege und E-Mails im Testmodus
+      - kontor-data:/data
+
+volumes:
+  kontor-data:

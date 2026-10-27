@@ -87,6 +87,10 @@ docker compose start
 
 Der Volume-Name setzt sich aus dem Ordnernamen und `kontor-data` zusammen, `docker volume ls` zeigt ihn an. Für den Zugriff aus dem Internet gehört auch hier ein Reverse Proxy mit HTTPS davor, wie unten beschrieben.
 
+### Mit fertigem Image (ohne Build auf dem Server)
+
+Bei jedem Stand auf `main` baut GitHub Actions das Image und veröffentlicht es als `ghcr.io/christiancra/kontor:latest`. Für verwaltete Docker-Umgebungen, die nur fertige Images starten, gibt es [`deploy/docker-compose.yml`](deploy/docker-compose.yml): Diese Datei übernehmen, fertig. Aktualisieren heißt dort nur, das Image neu zu ziehen (`docker compose pull && docker compose up -d`).
+
 ### Ohne Docker auf einem Server (z. B. ein kleiner VPS)
 
 1. Schritte wie oben ausführen, `PORT` nach Bedarf setzen (`PORT=3000 npm start`).
