@@ -1,0 +1,19 @@
+services:
+  kontor:
+    build: .
+    image: kontor:latest
+    restart: unless-stopped
+    ports:
+      - "${KONTOR_PORT:-3000}:3000"
+    environment:
+      # Optional; ohne Angabe erzeugt der Container beim ersten Start selbst einen Schlüssel
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      # E-Mail-Versand, z. B. smtps://benutzer:passwort@smtp.example.com:465 (leer = Testmodus)
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+    volumes:
+      # Datenbank, Belege und E-Mails im Testmodus
+      - kontor-data:/data
+
+volumes:
+  kontor-data:

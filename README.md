@@ -29,6 +29,99 @@ Rechnungen, Belege und Buchhaltung für Selbstständige und kleine Unternehmen i
 
 Nicht enthalten: direkte ELSTER-Übermittlung (dafür ist die ERiC-Bibliothek mit eigener Hersteller-ID nötig). Die UStVA- und EÜR-Werte lassen sich je Kennzahl kopieren und in „Mein ELSTER“ eintragen.
 
+## Installation
+
+Kontor ist eine Node.js-Anwendung mit SQLite-Datenbank. Datenbank und hochgeladene Belege liegen als Dateien auf dem Server. Deshalb braucht Kontor einen Rechner oder Server mit dauerhaftem Speicher. Serverless-Plattformen wie Vercel oder Netlify eignen sich nicht.
+
+Voraussetzungen: Node.js 20 oder neuer (empfohlen 22 oder 24 LTS) und Git.
+
+### Auf dem eigenen Rechner
+
+```bash
+git clone https://github.com/ChristianCra/Kontor.git
+cd Kontor
+npm install
+cp .env.example .env
+```
+
+In `.env` einen zufälligen `AUTH_SECRET` eintragen, zum Beispiel die Ausgabe von `openssl rand -base64 32`. Danach:
+
+```bash
+npx prisma migrate deploy   # legt die Datenbank prisma/dev.db an (leer, ohne Beispieldaten)
+npm run build
+npm start                   # http://localhost:3000
+```
+
+Beim ersten Aufruf legt man das erste Benutzerkonto an. Anschließend unter „Einstellungen“ die Firmendaten, den Kontenrahmen, die Versteuerungsart und die DATEV-Nummern eintragen und unter „Bank“ die Zahlungskonten anlegen.
+
+Wer Beispieldaten zum Ausprobieren möchte, ruft zusätzlich `npx prisma db seed` auf.
+
+### Mit Docker (empfohlen für Server und NAS)
+
+Auf dem Rechner wird nur Docker mit Compose gebraucht, kein Node.js:
+
+```bash
+git clone https://github.com/ChristianCra/Kontor.git
+cd Kontor
+docker compose up -d --build
+```
+
+Kontor läuft danach unter http://localhost:3000. Den Port ändert man mit `KONTOR_PORT=8080 docker compose up -d`. Beim Start legt der Container die Datenbank an bzw. spielt neue Migrationen ein. Ohne `AUTH_SECRET` erzeugt er beim ersten Start selbst einen Schlüssel und legt ihn im Datenvolume ab.
+
+Datenbank, Belege und der Schlüssel liegen im Docker-Volume `kontor-data` (im Container unter `/data`). Für den E-Mail-Versand legt man neben `docker-compose.yml` eine Datei `.env` an:
+
+```bash
+SMTP_URL=smtps://benutzer:passwort@smtp.example.com:465
+MAIL_FROM="Muster Design GmbH <rechnung@example.com>"
+```
+
+Aktualisieren: `git pull && docker compose up -d --build`
+
+Sichern, zum Beispiel nachts per Cron. Damit die Datenbank in einem stimmigen Zustand gesichert wird, hält man Kontor dafür kurz an:
+
+```bash
+docker compose stop
+docker run --rm -v kontor_kontor-data:/data -v "$PWD":/backup busybox tar czf /backup/kontor-$(date +%F).tar.gz -C /data .
+docker compose start
+```
+
+Der Volume-Name setzt sich aus dem Ordnernamen und `kontor-data` zusammen, `docker volume ls` zeigt ihn an. Für den Zugriff aus dem Internet gehört auch hier ein Reverse Proxy mit HTTPS davor, wie unten beschrieben.
+
+### Ohne Docker auf einem Server (z. B. ein kleiner VPS)
+
+1. Schritte wie oben ausführen, `PORT` nach Bedarf setzen (`PORT=3000 npm start`).
+2. Den Prozess dauerhaft laufen lassen, zum Beispiel mit einer systemd-Unit:
+
+   ```ini
+   [Unit]
+   Description=Kontor
+   After=network.target
+
+   [Service]
+   WorkingDirectory=/opt/kontor
+   ExecStart=/usr/bin/npm start
+   Environment=PORT=3000
+   Restart=always
+   User=kontor
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+3. Einen Reverse Proxy mit HTTPS davorsetzen, zum Beispiel Caddy mit der Zeile `kontor.example.de { reverse_proxy localhost:3000 }`. Ohne HTTPS sollte Kontor nicht im Internet erreichbar sein, denn Passwörter und Finanzdaten würden sonst unverschlüsselt übertragen.
+4. Für den echten E-Mail-Versand `SMTP_URL` und `MAIL_FROM` in `.env` setzen. Ohne SMTP-Zugang landen E-Mails nur als Datei in `storage/outbox`.
+5. Regelmäßig `prisma/dev.db` und den Ordner `storage/` sichern. Dort liegen alle Buchhaltungsdaten und Belege, die nach GoBD zehn Jahre aufbewahrt werden müssen.
+
+### Aktualisieren (ohne Docker)
+
+```bash
+git pull
+npm install
+npx prisma migrate deploy
+npm run build
+# danach den Dienst neu starten, z. B. sudo systemctl restart kontor
+```
+
 ## Entwicklung
 
 Voraussetzungen: Node.js 20+.
